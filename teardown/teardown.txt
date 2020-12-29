@@ -1,0 +1,19 @@
+PCB:
+
+- SOC: Nordic nRF52832, https://www.nordicsemi.com/Products/Low-power-short-range-wireless/nRF52832
+- Motor: Mitsumi M22E-13 (rated at 3.5 V), https://www.mitsumi.co.jp/latest/Catalog/pdf/motorav_m22e_13_e.pdf
+- Encoder:
+  yellow: A (10K pullup on PCB)
+  red: B (10K pullup on PCB)
+  black: GND
+- SMPS: TPS62177, https://www.ti.com/product/TPS62177
+- Motor driver: DRV8872, https://www.ti.com/lit/ds/symlink/drv8872.pdf?ts=1609239833366&ref_url=https%253A%252F%252Fwww.ti.com%252Fproduct%252FDRV8872
+
+Power supply is four 3V lithium cells.
+
+Mechanical:
+
+The rotary encoder is connected directly to the central drive shaft (via a set of plastic gear wheels).
+
+The motor drives the drive shaft via an automatic clutch that engages when the motor changes direction. All gears between the motor and the drive shaft are metal.
+
