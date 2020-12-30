@@ -2,7 +2,7 @@ PCB:
 
 - SOC: Nordic nRF52832, https://www.nordicsemi.com/Products/Low-power-short-range-wireless/nRF52832
 - Motor: Mitsumi M22E-13 (rated at 3.5 V), https://www.mitsumi.co.jp/latest/Catalog/pdf/motorav_m22e_13_e.pdf
-- Encoder:
+- Encoder: Mechanical quadrature encoder, 12 pulses/revolution
   yellow: A (10K pullup on PCB)
   red: B (10K pullup on PCB)
   black: GND
