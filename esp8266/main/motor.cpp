@@ -18,9 +18,9 @@ Motor::Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t
     // bit mask of the pins that you want to set
     io_conf.pin_bit_mask = (1ULL << In1) | (1ULL << In2) |  (1ULL << PWM) |  (1ULL << Standby);
     // disable pull-down mode
-    io_conf.pull_down_en = (gpio_pulldown_t) 0;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
     // disable pull-up mode
-    io_conf.pull_up_en = (gpio_pullup_t) 0;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
     // configure GPIO with the given settings
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
@@ -38,6 +38,7 @@ Motor::Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t
 
     ESP_ERROR_CHECK(pwm_init(1000, pwm_duty, 1, pwm_pin_num));
     ESP_ERROR_CHECK(pwm_set_phases(pwm_phase));
+    ESP_ERROR_CHECK(pwm_start());
 }
 
 void Motor::drive(int speed)
