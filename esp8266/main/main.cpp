@@ -31,17 +31,23 @@ extern "C" void app_main()
     
     Motor motor1(AIN1, AIN2, PWMA, STBY);
 
+    int speed = 100;
+    int period = 3000;
     for (int i = 10; i >= 0; i--)
     {
-        printf("Forwards\n");
-        motor1.drive(255);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        printf("Backwards\n");
-        motor1.drive(-255);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        printf("Forwards %d\n", speed);
+        motor1.drive(speed);
+        vTaskDelay(period / portTICK_PERIOD_MS);
         printf("Brake\n");
         motor1.brake();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
+        printf("Backwards %d\n", speed);
+        motor1.drive(-speed);
+        vTaskDelay(period / portTICK_PERIOD_MS);
+        printf("Brake\n");
+        motor1.brake();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        speed += 100;
     }
     printf("Restarting now.\n");
     fflush(stdout);

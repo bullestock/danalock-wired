@@ -38,7 +38,6 @@ Motor::Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t
 
     ESP_ERROR_CHECK(pwm_init(1000, pwm_duty, 1, pwm_pin_num));
     ESP_ERROR_CHECK(pwm_set_phases(pwm_phase));
-    ESP_ERROR_CHECK(pwm_start());
 }
 
 void Motor::drive(int speed)
@@ -55,6 +54,7 @@ void Motor::fwd(int speed)
     ESP_ERROR_CHECK(gpio_set_level(In1, 1));
     ESP_ERROR_CHECK(gpio_set_level(In2, 0));
     ESP_ERROR_CHECK(pwm_set_duty(0, speed));
+    ESP_ERROR_CHECK(pwm_start());
 }
 
 void Motor::rev(int speed)
@@ -62,6 +62,7 @@ void Motor::rev(int speed)
     ESP_ERROR_CHECK(gpio_set_level(In1, 0));
     ESP_ERROR_CHECK(gpio_set_level(In2, 1));
     ESP_ERROR_CHECK(pwm_set_duty(0, speed));
+    ESP_ERROR_CHECK(pwm_start());
 }
 
 void Motor::brake()
@@ -69,6 +70,7 @@ void Motor::brake()
     ESP_ERROR_CHECK(gpio_set_level(In1, 1));
     ESP_ERROR_CHECK(gpio_set_level(In2, 1));
     ESP_ERROR_CHECK(pwm_set_duty(0, 0));
+    ESP_ERROR_CHECK(pwm_start());
 }
 
 void Motor::standby()
