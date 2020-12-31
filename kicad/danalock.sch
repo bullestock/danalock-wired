@@ -224,7 +224,7 @@ P 3300 2775
 F 0 "U1" H 3300 3518 60  0000 C CNN
 F 1 "WeMos_D1_mini" H 3300 3412 60  0000 C CNN
 F 2 "" H 3850 2075 60  0000 C CNN
-F 3 "http://www.wemos.cc/Products/d1_mini.html" H 3300 3306 60  0000 C CNN
+F 3 "http://www.wemos.cc/Products/d1_mini.html" H 3300 3306 60  0001 C CNN
 	1    3300 2775
 	1    0    0    -1  
 $EndComp
@@ -355,13 +355,13 @@ Wire Wire Line
 	4500 3125 3800 3125
 Text GLabel 2600 2925 0    50   Input ~ 0
 ENC_A
-Text GLabel 2600 3025 0    50   Input ~ 0
+Text GLabel 2600 2825 0    50   Input ~ 0
 ENC_B
-Wire Wire Line
-	2600 3025 2800 3025
 Wire Wire Line
 	2800 2925 2600 2925
 NoConn ~ 2800 2625
 NoConn ~ 2800 2725
-NoConn ~ 2800 2825
+NoConn ~ 2800 3025
+Wire Wire Line
+	2600 2825 2800 2825
 $EndSCHEMATC
