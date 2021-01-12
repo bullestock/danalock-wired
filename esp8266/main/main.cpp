@@ -1,4 +1,5 @@
 #include "encoder.h"
+#include "led.h"
 #include "motor.h"
 
 #include <stdio.h>
@@ -15,6 +16,7 @@ const auto PWMA = (gpio_num_t) 0; // D3
 const auto STBY = (gpio_num_t) 2; // D4
 const auto ENC_A = (gpio_num_t) 13; // D7
 const auto ENC_B = (gpio_num_t) 12; // D6 - on Wemos D1 mini, D8 has a physical pulldown
+const auto LED = (gpio_num_t) 14; // D5
 
 extern "C" void app_main()
 {
@@ -22,7 +24,7 @@ extern "C" void app_main()
     ESP_ERROR_CHECK(esp_wifi_deinit());
     
     Motor motor1(AIN1, AIN2, PWMA, STBY);
-#if 1
+#if 0
     int speed = 100;
     int period = 3000;
     for (int i = 10; i >= 0; i--)
@@ -43,17 +45,25 @@ extern "C" void app_main()
     }
 #endif
 
+    Led led(LED);
+    led.set_period(10);
+    led.set_duty_cycle(1);
+    
     Encoder encoder(ENC_A, ENC_B);
     int n = 0;
+    int cycle = 1;
     while (1)
     {
         encoder.loop();
-        if (++n > 100)
+        led.update();
+        if (++n > 100000)
         {
             n = 0;
-            printf("pos %d\n", encoder.getPosition());
+            //printf("pos %d\n", encoder.getPosition());
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+            ++cycle;
+            led.set_duty_cycle(cycle);
         }
-        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
     printf("Restarting now.\n");
     fflush(stdout);
