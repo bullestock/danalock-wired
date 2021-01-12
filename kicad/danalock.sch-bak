@@ -224,7 +224,7 @@ P 3300 2775
 F 0 "U1" H 3300 3518 60  0000 C CNN
 F 1 "WeMos_D1_mini" H 3300 3412 60  0000 C CNN
 F 2 "" H 3850 2075 60  0000 C CNN
-F 3 "http://www.wemos.cc/Products/d1_mini.html" H 3300 3306 60  0000 C CNN
+F 3 "http://www.wemos.cc/Products/d1_mini.html" H 3300 3306 60  0001 C CNN
 	1    3300 2775
 	1    0    0    -1  
 $EndComp
@@ -360,8 +360,54 @@ ENC_B
 Wire Wire Line
 	2800 2925 2600 2925
 NoConn ~ 2800 2625
-NoConn ~ 2800 2725
 NoConn ~ 2800 3025
 Wire Wire Line
 	2600 2825 2800 2825
+Text GLabel 2600 2725 0    50   Input ~ 0
+LED
+Wire Wire Line
+	2600 2725 2800 2725
+$Comp
+L Device:LED D?
+U 1 1 5FFE2291
+P 2950 6600
+F 0 "D?" V 2989 6483 50  0000 R CNN
+F 1 "LED" V 2898 6483 50  0000 R CNN
+F 2 "" H 2950 6600 50  0001 C CNN
+F 3 "~" H 2950 6600 50  0001 C CNN
+	1    2950 6600
+	0    -1   -1   0   
+$EndComp
+$Comp
+L power:GND #PWR?
+U 1 1 5FFE2998
+P 2950 6850
+F 0 "#PWR?" H 2950 6600 50  0001 C CNN
+F 1 "GND" H 2955 6677 50  0000 C CNN
+F 2 "" H 2950 6850 50  0001 C CNN
+F 3 "" H 2950 6850 50  0001 C CNN
+	1    2950 6850
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:R R?
+U 1 1 5FFE2D2B
+P 2650 6325
+F 0 "R?" V 2443 6325 50  0000 C CNN
+F 1 "220" V 2534 6325 50  0000 C CNN
+F 2 "" V 2580 6325 50  0001 C CNN
+F 3 "~" H 2650 6325 50  0001 C CNN
+	1    2650 6325
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	2800 6325 2950 6325
+Wire Wire Line
+	2950 6325 2950 6450
+Wire Wire Line
+	2950 6750 2950 6850
+Text GLabel 2325 6325 0    50   Input ~ 0
+LED
+Wire Wire Line
+	2325 6325 2500 6325
 $EndSCHEMATC
