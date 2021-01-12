@@ -22,7 +22,7 @@ extern "C" void app_main()
     ESP_ERROR_CHECK(esp_wifi_deinit());
     
     Motor motor1(AIN1, AIN2, PWMA, STBY);
-#if 0
+#if 1
     int speed = 100;
     int period = 3000;
     for (int i = 10; i >= 0; i--)
