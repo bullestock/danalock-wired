@@ -49,10 +49,13 @@ static int calibrate(int argc, char** argv)
 
 static int lock(int, char**)
 {
-    printf("locking...\n");
-    motor.drive(motor_power);
+    led_duty_cycle = 50;
+    const auto pwr = motor_power;
+    printf("locking (%d)...\n", pwr);
+    motor->drive(pwr);
     vTaskDelay(5000/portTICK_PERIOD_MS);
-    motor.brake();
+    motor->brake();
+    led_duty_cycle = 10;
     printf("done\n");
     return 0;
 }
@@ -60,9 +63,13 @@ static int lock(int, char**)
 static int unlock(int, char**)
 {
     printf("unlocking...\n");
-    motor.drive(-motor_power);
+    led_duty_cycle = 10;
+    const auto pwr = motor_power;
+    printf("unlocking (%d)...\n", pwr);
+    motor->drive(-pwr);
     vTaskDelay(5000/portTICK_PERIOD_MS);
-    motor.brake();
+    motor->brake();
+    led_duty_cycle = 10;
     printf("done\n");
     return 0;
 }

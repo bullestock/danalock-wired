@@ -38,5 +38,3 @@ protected:
     Direction direction = LEFT;
     int state = 0;
 };
-
-extern std::atomic<int> encoder_position;

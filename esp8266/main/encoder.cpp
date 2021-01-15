@@ -100,14 +100,22 @@ void Encoder::loop()
 }
 
 std::atomic<int> encoder_position(0);
+std::atomic<int> led_duty_cycle(0);
 
 extern "C" void encoder_task(void*)
 {
+    auto old_led_duty_cycle = led_duty_cycle.load();
     while (1)
     {
         encoder.loop();
         encoder_position = encoder.getPosition();
-        //led.update();
+        const auto new_led_duty_cycle = led_duty_cycle.load();
+        if (new_led_duty_cycle != old_led_duty_cycle)
+        {
+            led.set_duty_cycle(new_led_duty_cycle);
+            old_led_duty_cycle = new_led_duty_cycle;
+        }
+        led.update();
         vTaskDelay(10 / portTICK_PERIOD_MS); //!!
     }
 }

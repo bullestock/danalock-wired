@@ -21,55 +21,20 @@ const auto LED = (gpio_num_t) 14; // D5
 extern "C" void console_task(void*);
 extern "C" void encoder_task(void*);
 
-Motor motor(AIN1, AIN2, PWMA, STBY);
 Encoder encoder(ENC_A, ENC_B);
+Led led(LED);
+Motor* motor = nullptr;
 
 extern "C" void app_main()
 {
     // We don't need wifi
     ESP_ERROR_CHECK(esp_wifi_deinit());
 
-    xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
-    xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
+    motor = new Motor(AIN1, AIN2, PWMA, STBY);
     
-#if 0
-    int speed = 100;
-    int period = 3000;
-    for (int i = 10; i >= 0; i--)
-    {
-        printf("Forwards %d\n", speed);
-        motor1.drive(speed);
-        vTaskDelay(period / portTICK_PERIOD_MS);
-        printf("Brake\n");
-        motor1.brake();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        printf("Backwards %d\n", speed);
-        motor1.drive(-speed);
-        vTaskDelay(period / portTICK_PERIOD_MS);
-        printf("Brake\n");
-        motor1.brake();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        speed += 100;
-    }
-#endif
-
-    Led led(LED);
     led.set_period(10);
     led.set_duty_cycle(1);
-    
-    int n = 0;
-    int cycle = 1;
-    while (1)
-    {
-        encoder.loop();
-        led.update();
-        if (++n > 100000)
-        {
-            n = 0;
-            //printf("pos %d\n", encoder.getPosition());
-            vTaskDelay(10 / portTICK_PERIOD_MS);
-            ++cycle;
-            led.set_duty_cycle(cycle);
-        }
-    }
+
+    xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
+    //    xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
 }
