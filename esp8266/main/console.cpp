@@ -47,13 +47,28 @@ static int calibrate(int argc, char** argv)
     return 0;
 }
 
+void wait(int ms)
+{
+    const int slice = 10;
+    int k = 0;
+    for (int n = 0; n < ms/slice; ++n)
+    {
+        vTaskDelay(slice/portTICK_PERIOD_MS);
+        if (++k > 10)
+        {
+            printf("Encoder %d\n", encoder_position.load());
+            k = 0;
+        }
+    }
+}
+
 static int lock(int, char**)
 {
     led_duty_cycle = 50;
     const auto pwr = motor_power;
     printf("locking (%d)...\n", pwr);
     motor->drive(pwr);
-    vTaskDelay(5000/portTICK_PERIOD_MS);
+    wait(5000);
     motor->brake();
     led_duty_cycle = 10;
     printf("done\n");
@@ -67,7 +82,7 @@ static int unlock(int, char**)
     const auto pwr = motor_power;
     printf("unlocking (%d)...\n", pwr);
     motor->drive(-pwr);
-    vTaskDelay(5000/portTICK_PERIOD_MS);
+    wait(5000);
     motor->brake();
     led_duty_cycle = 10;
     printf("done\n");

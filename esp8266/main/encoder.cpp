@@ -116,6 +116,6 @@ extern "C" void encoder_task(void*)
             old_led_duty_cycle = new_led_duty_cycle;
         }
         led.update();
-        vTaskDelay(10 / portTICK_PERIOD_MS); //!!
+        vTaskDelay(1 / portTICK_PERIOD_MS);
     }
 }
