@@ -20,7 +20,7 @@ struct
     struct arg_end* end;
 } set_power_args;
 
-int motor_power = 300;
+int motor_power = 500;
 
 static int set_power(int argc, char** argv)
 {
@@ -47,19 +47,35 @@ static int calibrate(int argc, char** argv)
     return 0;
 }
 
+// Encoder lag:
+// Power  Lag [ms]
+//  400   1800
+//  500   1400
+//  800    800
 void wait(int ms)
 {
     const int slice = 10;
     int k = 0;
+    const auto start_pos = encoder_position.load();
+    const auto start_tick = xTaskGetTickCount();
+    bool moved = false;
+    TickType_t moved_tick = 0;
     for (int n = 0; n < ms/slice; ++n)
     {
+        const auto pos = encoder_position.load();
+        if (!moved && pos != start_pos)
+        {
+            moved_tick = xTaskGetTickCount();
+            moved = true;
+        }
         vTaskDelay(slice/portTICK_PERIOD_MS);
         if (++k > 10)
         {
-            printf("Encoder %d\n", encoder_position.load());
+            printf("Encoder %d\n", pos);
             k = 0;
         }
     }
+    printf("Ticks %d\n", int(moved_tick - start_tick));
 }
 
 static int lock(int, char**)
