@@ -52,16 +52,16 @@ void Motor::drive(int speed)
 
 void Motor::fwd(int speed)
 {
-    ESP_ERROR_CHECK(gpio_set_level(In1, 1));
-    ESP_ERROR_CHECK(gpio_set_level(In2, 0));
+    ESP_ERROR_CHECK(gpio_set_level(In1, 0));
+    ESP_ERROR_CHECK(gpio_set_level(In2, 1));
     ESP_ERROR_CHECK(pwm_set_duty(0, speed));
     ESP_ERROR_CHECK(pwm_start());
 }
 
 void Motor::rev(int speed)
 {
-    ESP_ERROR_CHECK(gpio_set_level(In1, 0));
-    ESP_ERROR_CHECK(gpio_set_level(In2, 1));
+    ESP_ERROR_CHECK(gpio_set_level(In1, 1));
+    ESP_ERROR_CHECK(gpio_set_level(In2, 0));
     ESP_ERROR_CHECK(pwm_set_duty(0, speed));
     ESP_ERROR_CHECK(pwm_start());
 }
