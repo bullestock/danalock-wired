@@ -36,5 +36,5 @@ extern "C" void app_main()
     led.set_duty_cycle(1);
 
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
-    //    xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
+    xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
 }

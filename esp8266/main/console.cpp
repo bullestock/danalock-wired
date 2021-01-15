@@ -20,7 +20,7 @@ struct
     struct arg_end* end;
 } set_power_args;
 
-int motor_power = 100;
+int motor_power = 300;
 
 static int set_power(int argc, char** argv)
 {
