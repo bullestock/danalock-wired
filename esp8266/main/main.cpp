@@ -20,6 +20,8 @@ const auto LED = (gpio_num_t) 14; // D5
 
 extern "C" void console_task(void*);
 
+Motor motor(AIN1, AIN2, PWMA, STBY);
+
 extern "C" void app_main()
 {
     // We don't need wifi
@@ -27,7 +29,6 @@ extern "C" void app_main()
 
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
     
-    Motor motor1(AIN1, AIN2, PWMA, STBY);
 #if 0
     int speed = 100;
     int period = 3000;

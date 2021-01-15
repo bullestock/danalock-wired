@@ -2,15 +2,46 @@
 #include <string.h>
 
 #include "defines.h"
+#include "motor.h"
 
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_console.h"
 #include "esp_vfs_dev.h"
 #include "FreeRTOS.h"
+#include "freertos/task.h"
 #include "driver/uart.h"
 #include "linenoise/linenoise.h"
 #include "argtable3/argtable3.h"
+
+extern Motor motor;
+
+struct
+{
+    struct arg_int* power;
+    struct arg_end* end;
+} set_power_args;
+
+int motor_power = 100;
+
+static int set_power(int argc, char** argv)
+{
+    int nerrors = arg_parse(argc, argv, (void**) &set_power_args);
+    if (nerrors != 0)
+    {
+        arg_print_errors(stderr, set_power_args.end, argv[0]);
+        return 1;
+    }
+    const auto pwr = set_power_args.power->ival[0];
+    if (pwr < 0 || pwr > 1000)
+    {
+        printf("Invalid power value\n");
+        return 1;
+    }
+    motor_power = pwr;
+    printf("Power set to %d\n", motor_power);
+    return 0;
+}
 
 static int calibrate(int argc, char** argv)
 {
@@ -21,12 +52,20 @@ static int calibrate(int argc, char** argv)
 static int lock(int, char**)
 {
     printf("locking...\n");
+    motor.drive(motor_power);
+    vTaskDelay(10000/portTICK_PERIOD_MS);
+    motor.brake();
+    printf("done\n");
     return 0;
 }
 
 static int unlock(int, char**)
 {
     printf("unlocking...\n");
+    motor.drive(-motor_power);
+    vTaskDelay(10000/portTICK_PERIOD_MS);
+    motor.brake();
+    printf("done\n");
     return 0;
 }
 
@@ -80,6 +119,17 @@ extern "C" void console_task(void*)
 
     // Register commands
     esp_console_register_help_command();
+
+    set_power_args.power = arg_int1(NULL, NULL, "<pwr>", "Motor power (0-1000)");
+    set_power_args.end = arg_end(2);
+    const esp_console_cmd_t set_power_cmd = {
+        .command = "set_power",
+        .help = "Set motor power",
+        .hint = nullptr,
+        .func = &set_power,
+        .argtable = &set_power_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&set_power_cmd));
 
     const esp_console_cmd_t calibrate_cmd = {
         .command = "calibrate",
