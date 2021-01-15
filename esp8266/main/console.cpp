@@ -20,6 +20,12 @@ struct
     struct arg_end* end;
 } set_power_args;
 
+struct
+{
+    struct arg_int* degrees;
+    struct arg_end* end;
+} rotate_args;
+
 int motor_power = 500;
 
 static int set_power(int argc, char** argv)
@@ -76,6 +82,59 @@ void wait(int ms)
         }
     }
     printf("Ticks %d\n", int(moved_tick - start_tick));
+    printf("Pulses %d\n", int(encoder_position.load() - start_pos));
+}
+
+// Power  Pulses in 5s
+//  400    50
+//  500    65
+//  800   120
+int rotate(int argc, char** argv)
+{
+    if (argc < 1)
+    {
+        printf("Missing argument\n");
+        return 1;
+    }
+    // arg_parser believes everything starting with - must be an option
+    const auto degrees = atoi(argv[1]);
+    if (degrees < -1000 || degrees > 1000)
+    {
+        printf("Invalid degrees value\n");
+        return 1;
+    }
+
+    const int sign = degrees < 0 ? -1 : 1;
+    const int abs_degrees = abs(degrees);
+    const int needed_pulses = abs_degrees * Encoder::STEPS_PER_REVOLUTION / 360;
+    
+    const int MAX_TIME = 10000; // ms
+    const auto start_pos = encoder_position.load();
+    const auto start_tick = xTaskGetTickCount();
+    motor->drive(sign * motor_power);
+    const int slice = 10;
+    int k = 0;
+    while (1)
+    {
+        const auto pos = encoder_position.load();
+        if (sign*(pos - start_pos) >= needed_pulses)
+        {
+            break;
+        }
+        vTaskDelay(slice/portTICK_PERIOD_MS);
+        if (++k > 10)
+        {
+            printf("Encoder %d\n", pos);
+            k = 0;
+        }
+        if (xTaskGetTickCount() - start_tick > MAX_TIME/portTICK_PERIOD_MS)
+        {
+            printf("Timeout!\n");
+            return 1;
+        }
+    }
+    motor->brake();
+    return 0;
 }
 
 static int lock(int, char**)
@@ -179,6 +238,17 @@ extern "C" void console_task(void*)
         .argtable = &set_power_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&set_power_cmd));
+
+    rotate_args.degrees = arg_int1(NULL, NULL, "<degrees>", "Degrees");
+    rotate_args.end = arg_end(2);
+    const esp_console_cmd_t rotate_cmd = {
+        .command = "rotate",
+        .help = "Rotate degrees",
+        .hint = nullptr,
+        .func = &rotate,
+        .argtable = &rotate_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&rotate_cmd));
 
     const esp_console_cmd_t read_encoder_cmd = {
         .command = "read_encoder",

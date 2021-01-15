@@ -14,6 +14,8 @@ public:
             int initial_pos = 0);
 
     // 50 steps per revolution
+    static constexpr const int STEPS_PER_REVOLUTION = 50;
+    
     int getPosition() const;
     void resetPosition(int p = 0);
 
