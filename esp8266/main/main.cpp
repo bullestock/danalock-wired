@@ -18,10 +18,14 @@ const auto ENC_A = (gpio_num_t) 13; // D7
 const auto ENC_B = (gpio_num_t) 12; // D6 - on Wemos D1 mini, D8 has a physical pulldown
 const auto LED = (gpio_num_t) 14; // D5
 
+extern "C" void console_task(void*);
+
 extern "C" void app_main()
 {
     // We don't need wifi
     ESP_ERROR_CHECK(esp_wifi_deinit());
+
+    xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
     
     Motor motor1(AIN1, AIN2, PWMA, STBY);
 #if 0
@@ -65,7 +69,4 @@ extern "C" void app_main()
             led.set_duty_cycle(cycle);
         }
     }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
 }
