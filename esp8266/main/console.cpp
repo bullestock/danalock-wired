@@ -14,8 +14,6 @@
 #include "linenoise/linenoise.h"
 #include "argtable3/argtable3.h"
 
-extern Motor motor;
-
 struct
 {
     struct arg_int* power;
@@ -53,7 +51,7 @@ static int lock(int, char**)
 {
     printf("locking...\n");
     motor.drive(motor_power);
-    vTaskDelay(10000/portTICK_PERIOD_MS);
+    vTaskDelay(5000/portTICK_PERIOD_MS);
     motor.brake();
     printf("done\n");
     return 0;
@@ -63,8 +61,21 @@ static int unlock(int, char**)
 {
     printf("unlocking...\n");
     motor.drive(-motor_power);
-    vTaskDelay(10000/portTICK_PERIOD_MS);
+    vTaskDelay(5000/portTICK_PERIOD_MS);
     motor.brake();
+    printf("done\n");
+    return 0;
+}
+
+static int read_encoder(int, char**)
+{
+    for (int n = 0; n < 100; ++n)
+    {
+        vTaskDelay(500/portTICK_PERIOD_MS);
+        printf("Encoder %d\n", encoder_position.load());
+        // if (fgetc(stdin) != EOF)
+        //     break;
+    }
     printf("done\n");
     return 0;
 }
@@ -130,6 +141,15 @@ extern "C" void console_task(void*)
         .argtable = &set_power_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&set_power_cmd));
+
+    const esp_console_cmd_t read_encoder_cmd = {
+        .command = "read_encoder",
+        .help = "Read encoder",
+        .hint = nullptr,
+        .func = &read_encoder,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&read_encoder_cmd));
 
     const esp_console_cmd_t calibrate_cmd = {
         .command = "calibrate",

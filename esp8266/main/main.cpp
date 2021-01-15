@@ -19,8 +19,10 @@ const auto ENC_B = (gpio_num_t) 12; // D6 - on Wemos D1 mini, D8 has a physical 
 const auto LED = (gpio_num_t) 14; // D5
 
 extern "C" void console_task(void*);
+extern "C" void encoder_task(void*);
 
 Motor motor(AIN1, AIN2, PWMA, STBY);
+Encoder encoder(ENC_A, ENC_B);
 
 extern "C" void app_main()
 {
@@ -28,6 +30,7 @@ extern "C" void app_main()
     ESP_ERROR_CHECK(esp_wifi_deinit());
 
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
+    xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
     
 #if 0
     int speed = 100;
@@ -54,7 +57,6 @@ extern "C" void app_main()
     led.set_period(10);
     led.set_duty_cycle(1);
     
-    Encoder encoder(ENC_A, ENC_B);
     int n = 0;
     int cycle = 1;
     while (1)

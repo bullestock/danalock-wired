@@ -1,16 +1,17 @@
-#include "encoder.h"
+#include "defines.h"
 
 #include <cmath>
 #include <stdio.h>
 
-Encoder::Encoder(gpio_num_t _pin1, gpio_num_t _pin2, int steps_per_click, int _lower_bound, int _upper_bound, int initial_pos)
+#include "FreeRTOS.h"
+#include "freertos/task.h"
+
+Encoder::Encoder(gpio_num_t _pin1, gpio_num_t _pin2, int _lower_bound, int _upper_bound, int initial_pos)
     : pin1(_pin1),
       pin2(_pin2),
       lower_bound(_lower_bound < _upper_bound ? _lower_bound : _upper_bound),
       upper_bound(_lower_bound < _upper_bound ? _upper_bound: _lower_bound)
 {
-    setStepsPerClick(steps_per_click);
-
     // Configure GPIO pins
     
     gpio_config_t io_conf;
@@ -35,24 +36,14 @@ Encoder::Encoder(gpio_num_t _pin1, gpio_num_t _pin2, int steps_per_click, int _l
 void Encoder::resetPosition(int p)
 {
     if (p > upper_bound)
-        last_position = upper_bound * steps_per_click;
+        last_position = upper_bound;
     else
-        last_position = (lower_bound > p) ? lower_bound * steps_per_click : p * steps_per_click;
+        last_position = (lower_bound > p) ? lower_bound : p;
 
     if (position != last_position)
         position = last_position;
 
     direction = LEFT;
-}
-
-void Encoder::setStepsPerClick(int steps)
-{
-    steps_per_click = (steps < 1) ? 1 : steps;
-}
-
-int Encoder::getStepsPerClick() const
-{
-  return steps_per_click;
 }
 
 Encoder::Direction Encoder::getDirection() const
@@ -62,7 +53,7 @@ Encoder::Direction Encoder::getDirection() const
 
 int Encoder::getPosition() const
 {
-    return position / steps_per_click;
+    return position;
 }
 
 void Encoder::loop()
@@ -94,7 +85,7 @@ void Encoder::loop()
     {
         if (position != last_position)
         {
-            if (std::abs(position - last_position) >= steps_per_click)
+            if (std::abs(position - last_position) >= 1)
             {
                 if (position > last_position)
                     direction = RIGHT;
@@ -106,4 +97,17 @@ void Encoder::loop()
     }
     else
         position = last_position;
+}
+
+std::atomic<int> encoder_position(0);
+
+extern "C" void encoder_task(void*)
+{
+    while (1)
+    {
+        encoder.loop();
+        encoder_position = encoder.getPosition();
+        //led.update();
+        vTaskDelay(10 / portTICK_PERIOD_MS); //!!
+    }
 }
