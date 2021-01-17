@@ -35,6 +35,8 @@ struct
 
 int motor_power = 500;
 int no_rotation_timeout = 275;
+int locked_position = 0;
+int unlocked_position = 0;
 
 static int set_power(int argc, char** argv)
 {
@@ -74,15 +76,10 @@ static int set_no_rotation_timeout(int argc, char** argv)
     return 0;
 }
 
-static int calibrate(int argc, char** argv)
+bool do_calibration(bool fwd)
 {
-    printf("Calibrating...\n");
-
-    // We assume that current state is unlocked, so first step is to lock
-    led_period = 1;
-    led_duty_cycle = 50;
-    const auto pwr = CALIBRATE_POWER;
-    printf("- locking (%d)...\n", pwr);
+    const auto pwr = fwd ? CALIBRATE_POWER : -CALIBRATE_POWER;
+    printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_tick = xTaskGetTickCount();
     const auto start_pos = encoder_position.load();
     bool engaged = false;
@@ -97,8 +94,8 @@ static int calibrate(int argc, char** argv)
         const auto pos = encoder_position.load();
         if (pos != last_encoder_pos)
         {
-            printf("%ld Encoder %d\n", (long) now, pos);
-            fflush(stdout);
+            /*printf("%ld Encoder %d\n", (long) now, pos);
+              fflush(stdout);*/
         }
         if (!engaged)
         {
@@ -108,7 +105,7 @@ static int calibrate(int argc, char** argv)
                 printf("\nEngage timeout!\n");
                 led_duty_cycle = 10;
                 led_period = 40;
-                return 1;
+                return false;
             }
             if (pos != start_pos)
             {
@@ -122,7 +119,6 @@ static int calibrate(int argc, char** argv)
             if (pos != last_encoder_pos)
             {
                 last_position_change = now;
-                //printf("changed\n");
             }
             else if (now - last_position_change > no_rotation_timeout)
             {
@@ -131,8 +127,7 @@ static int calibrate(int argc, char** argv)
                 printf("\nHit limit\n");
                 led_period = LED_DEFAULT_PERIOD;
                 led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
-                return 0;
-                
+                return true;
             }
         }
         last_encoder_pos = pos;
@@ -142,13 +137,56 @@ static int calibrate(int argc, char** argv)
             printf("\nTimeout!\n");
             led_period = 10;
             led_duty_cycle = 10;
-            return 1;
+            return false;
         }
     }
+}
+
+static int calibrate(int argc, char** argv)
+{
+    printf("Calibrating...\n");
+
+    // We assume that current state is unlocked, so first step is to lock
+    led_period = 1;
+    led_duty_cycle = 50;
+    bool ok = do_calibration(true);
     motor->brake();
+    if (!ok)
+        return 1;
+
+    // Back off
+    motor->brake();
+    vTaskDelay(BACKOFF_TICKS);
+    printf("Back off from %d\n", encoder_position.load());
+    motor->drive(-CALIBRATE_POWER);
+    vTaskDelay(2*BACKOFF_TICKS);
+    motor->brake();
+    printf("Backed off to %d\n", encoder_position.load());
+    vTaskDelay(BACKOFF_TICKS);
+
+    locked_position = encoder_position.load();
+    
+    // Now unlock
+    ok = do_calibration(false);
+    motor->brake();
+      if (!ok)
+        return 1;
+
+    // Back off
+    vTaskDelay(BACKOFF_TICKS);
+    printf("Back off from %d\n", encoder_position.load());
+    motor->drive(CALIBRATE_POWER);
+    vTaskDelay(2*BACKOFF_TICKS);
+    motor->brake();
+    printf("Backed off to %d\n", encoder_position.load());
+
+    unlocked_position = encoder_position.load();
+    
     led_period = LED_DEFAULT_PERIOD;
     led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
 
+    printf("Locked %d Unlocked %d\n", locked_position, unlocked_position);
+    
     return 0;
 }
 
@@ -237,43 +275,115 @@ int rotate(int argc, char** argv)
     return 0;
 }
 
+bool rotate_to(bool fwd, int position)
+{
+    const auto start_pos = encoder_position.load();
+    if ((fwd && (position < start_pos)) ||
+        (!fwd && (position > start_pos)))
+    {
+        printf("Impossible: Forward %d, current position %d, requested %d\n",
+               fwd, start_pos, position);
+        return false;
+    }
+    const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
+    const int steps_needed = fabs(position - start_pos);
+    if (steps_needed > MAX_TOTAL_PULSES)
+    {
+        printf("Impossible: Distance %d\n", steps_needed);
+        return false;
+    }
+
+    const auto start_tick = xTaskGetTickCount();
+    bool engaged = false;
+    motor->drive(fwd ? motor_power : -motor_power);
+    const int MAX_ENGAGE_TIME = 2000; // ms
+    int last_encoder_pos = std::numeric_limits<int>::min();
+    int last_position_change = 0;
+    while (1)
+    {
+        const auto now = xTaskGetTickCount();
+        const auto pos = encoder_position.load();
+        if (!engaged)
+        {
+            if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
+            {
+                motor->brake();
+                printf("\nEngage timeout!\n");
+                led_duty_cycle = 10;
+                led_period = 40;
+                return false;
+            }
+            if (pos != start_pos)
+            {
+                engaged = true;
+                printf("\n%ld Engaged\n", (long) now);
+                last_position_change = now;
+            }
+        }
+        else
+        {
+            if (pos != last_encoder_pos)
+            {
+                last_position_change = now;
+            }
+            else if (now - last_position_change > no_rotation_timeout)
+            {
+                motor->brake();
+                printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
+                printf("\nHit limit\n");
+                return false;
+            }
+        }
+        last_encoder_pos = pos;
+        const auto steps_total = fabs(pos - start_pos);
+        if (steps_total > MAX_TOTAL_PULSES)
+        {
+            motor->brake();
+            printf("\nTimeout!\n");
+            return false;
+        }
+        if (steps_total >= steps_needed)
+            break;
+    }
+
+    motor->brake();
+    return true;
+}
+
 static int lock(int, char**)
 {
     led_period = 1;
     led_duty_cycle = 50;
-    const auto pwr = motor_power;
-    const auto start_pos = encoder_position.load();
-    const auto start_tick = xTaskGetTickCount();
-    printf("Locking (%d)...\n", pwr);
-    motor->drive(pwr);
-    wait(5000);
+    if (!rotate_to(true, locked_position))
+        return 1;
+    // Back off
+    vTaskDelay(BACKOFF_TICKS);
+    printf("Back off (%d)\n", motor_power);
+    motor->drive(-motor_power);
+    vTaskDelay(BACKOFF_TICKS);
     motor->brake();
+    printf("Backed off\n");
     led_period = LED_DEFAULT_PERIOD;
     led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
-    const auto pos_delta = encoder_position.load() - start_pos;
-    const auto tick_delta = xTaskGetTickCount() - start_tick;
-    printf("%d steps in %d ticks\n", (int) pos_delta, (int) tick_delta);
     printf("done\n");
     return 0;
 }
 
 static int unlock(int, char**)
 {
-    printf("Unlocking...\n");
     led_period = 1;
     led_duty_cycle = 10;
-    const auto pwr = motor_power;
-    const auto start_pos = encoder_position.load();
-    const auto start_tick = xTaskGetTickCount();
-    printf("unlocking (%d)...\n", pwr);
-    motor->drive(-pwr);
-    wait(5000);
+    if (!rotate_to(false, unlocked_position))
+        return 1;
+    // Back off
+    vTaskDelay(BACKOFF_TICKS);
+    printf("Back off (%d)\n", motor_power);
+    motor->drive(motor_power);
+    vTaskDelay(BACKOFF_TICKS);
     motor->brake();
+    printf("Backed off\n");
     led_period = LED_DEFAULT_PERIOD;
     led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
-    const auto pos_delta = encoder_position.load() - start_pos;
-    const auto tick_delta = xTaskGetTickCount() - start_tick;
-    printf("%d steps in %d ticks\n", (int) -pos_delta, (int) tick_delta);
     printf("done\n");
     return 0;
 }
@@ -413,7 +523,7 @@ extern "C" void console_task(void*)
 
     const char* prompt = "";
 
-    printf("Danalock " VERSION " ready\n");
+    printf("Danalock " VERSION " ready: %d\n", (int) portTICK_PERIOD_MS);
 
     while (true)
     {

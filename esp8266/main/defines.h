@@ -10,7 +10,10 @@ constexpr const int LED_DEFAULT_PERIOD = 10;
 constexpr const int LED_DEFAULT_DUTY_CYCLE = 1;
 
 /// Motor power for automatic calibration - reduced to avoid mechanical damage
-constexpr const int CALIBRATE_POWER = 300;
+constexpr const int CALIBRATE_POWER = 250;
+
+/// Number of ticks to back off after hitting limit
+constexpr const int BACKOFF_TICKS = 500;
 
 extern Motor* motor;
 extern Encoder encoder;
