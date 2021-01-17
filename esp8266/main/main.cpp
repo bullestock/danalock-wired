@@ -1,3 +1,4 @@
+#include "defines.h"
 #include "encoder.h"
 #include "led.h"
 #include "motor.h"
@@ -32,8 +33,8 @@ extern "C" void app_main()
 
     motor = new Motor(AIN1, AIN2, PWMA, STBY);
     
-    led.set_period(10);
-    led.set_duty_cycle(1);
+    led.set_period(LED_DEFAULT_PERIOD);
+    led.set_duty_cycle(LED_DEFAULT_DUTY_CYCLE);
 
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
     xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);

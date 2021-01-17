@@ -22,11 +22,18 @@ struct
 
 struct
 {
+    struct arg_int* no_rotation_timeout;
+    struct arg_end* end;
+} set_no_rotation_timeout_args;
+
+struct
+{
     struct arg_int* degrees;
     struct arg_end* end;
 } rotate_args;
 
 int motor_power = 500;
+int no_rotation_timeout = 275;
 
 static int set_power(int argc, char** argv)
 {
@@ -47,9 +54,100 @@ static int set_power(int argc, char** argv)
     return 0;
 }
 
+static int set_no_rotation_timeout(int argc, char** argv)
+{
+    int nerrors = arg_parse(argc, argv, (void**) &set_no_rotation_timeout_args);
+    if (nerrors != 0)
+    {
+        arg_print_errors(stderr, set_no_rotation_timeout_args.end, argv[0]);
+        return 1;
+    }
+    const auto to = set_no_rotation_timeout_args.no_rotation_timeout->ival[0];
+    if (to < 0 || to > 1000)
+    {
+        printf("Invalid no_rotation_timeout value\n");
+        return 1;
+    }
+    no_rotation_timeout = to;
+    printf("No rotation timeout set to %d\n", no_rotation_timeout);
+    return 0;
+}
+
 static int calibrate(int argc, char** argv)
 {
-    printf("calibrating...\n");
+    printf("Calibrating...\n");
+
+    // We assume that current state is unlocked, so first step is to lock
+    led_period = 1;
+    led_duty_cycle = 50;
+    const auto pwr = CALIBRATE_POWER;
+    printf("- locking (%d)...\n", pwr);
+    auto start_tick = xTaskGetTickCount();
+    const auto start_pos = encoder_position.load();
+    bool engaged = false;
+    motor->drive(pwr);
+    const int MAX_TOTAL_TIME = 5000; // ms
+    const int MAX_ENGAGE_TIME = 2000; // ms
+    int last_encoder_pos = std::numeric_limits<int>::min();
+    int last_position_change = 0;
+    while (1)
+    {
+        const auto now = xTaskGetTickCount();
+        const auto pos = encoder_position.load();
+        if (pos != last_encoder_pos)
+        {
+            printf("%ld Encoder %d\n", (long) now, pos);
+            fflush(stdout);
+        }
+        if (!engaged)
+        {
+            if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
+            {
+                motor->brake();
+                printf("\nEngage timeout!\n");
+                led_duty_cycle = 10;
+                led_period = 40;
+                return 1;
+            }
+            if (pos != start_pos)
+            {
+                engaged = true;
+                printf("\n%ld Engaged\n", (long) now);
+                last_position_change = now;
+            }
+        }
+        else
+        {
+            if (pos != last_encoder_pos)
+            {
+                last_position_change = now;
+                //printf("changed\n");
+            }
+            else if (now - last_position_change > no_rotation_timeout)
+            {
+                motor->brake();
+                printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
+                printf("\nHit limit\n");
+                led_period = LED_DEFAULT_PERIOD;
+                led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+                return 0;
+                
+            }
+        }
+        last_encoder_pos = pos;
+        if (now - start_tick > MAX_TOTAL_TIME/portTICK_PERIOD_MS)
+        {
+            motor->brake();
+            printf("\nTimeout!\n");
+            led_period = 10;
+            led_duty_cycle = 10;
+            return 1;
+        }
+    }
+    motor->brake();
+    led_period = LED_DEFAULT_PERIOD;
+    led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+
     return 0;
 }
 
@@ -77,11 +175,12 @@ void wait(int ms)
         vTaskDelay(slice/portTICK_PERIOD_MS);
         if (++k > 10)
         {
-            printf("Encoder %d\n", pos);
+            printf("Encoder %d\r", pos);
+            fflush(stdout);
             k = 0;
         }
     }
-    printf("Ticks %d\n", int(moved_tick - start_tick));
+    printf("\n%d ticks to engage\n", int(moved_tick - start_tick));
     printf("Pulses %d\n", int(encoder_position.load() - start_pos));
 }
 
@@ -139,27 +238,41 @@ int rotate(int argc, char** argv)
 
 static int lock(int, char**)
 {
+    led_period = 1;
     led_duty_cycle = 50;
     const auto pwr = motor_power;
-    printf("locking (%d)...\n", pwr);
+    const auto start_pos = encoder_position.load();
+    const auto start_tick = xTaskGetTickCount();
+    printf("Locking (%d)...\n", pwr);
     motor->drive(pwr);
     wait(5000);
     motor->brake();
-    led_duty_cycle = 10;
+    led_period = LED_DEFAULT_PERIOD;
+    led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+    const auto pos_delta = encoder_position.load() - start_pos;
+    const auto tick_delta = xTaskGetTickCount() - start_tick;
+    printf("%d steps in %d ticks\n", (int) pos_delta, (int) tick_delta);
     printf("done\n");
     return 0;
 }
 
 static int unlock(int, char**)
 {
-    printf("unlocking...\n");
+    printf("Unlocking...\n");
+    led_period = 1;
     led_duty_cycle = 10;
     const auto pwr = motor_power;
+    const auto start_pos = encoder_position.load();
+    const auto start_tick = xTaskGetTickCount();
     printf("unlocking (%d)...\n", pwr);
     motor->drive(-pwr);
     wait(5000);
     motor->brake();
-    led_duty_cycle = 10;
+    led_period = LED_DEFAULT_PERIOD;
+    led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+    const auto pos_delta = encoder_position.load() - start_pos;
+    const auto tick_delta = xTaskGetTickCount() - start_tick;
+    printf("%d steps in %d ticks\n", (int) -pos_delta, (int) tick_delta);
     printf("done\n");
     return 0;
 }
@@ -238,6 +351,17 @@ extern "C" void console_task(void*)
         .argtable = &set_power_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&set_power_cmd));
+
+    set_no_rotation_timeout_args.no_rotation_timeout = arg_int1(NULL, NULL, "<ms>", "No rotation timeout");
+    set_no_rotation_timeout_args.end = arg_end(2);
+    const esp_console_cmd_t set_no_rotation_timeout_cmd = {
+        .command = "set_no_rotation_timeout",
+        .help = "Set no rotation timeout",
+        .hint = nullptr,
+        .func = &set_no_rotation_timeout,
+        .argtable = &set_no_rotation_timeout_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&set_no_rotation_timeout_cmd));
 
     rotate_args.degrees = arg_int1(NULL, NULL, "<degrees>", "Degrees");
     rotate_args.end = arg_end(2);
