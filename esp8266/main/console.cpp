@@ -92,19 +92,13 @@ bool do_calibration(bool fwd)
     {
         const auto now = xTaskGetTickCount();
         const auto pos = encoder_position.load();
-        if (pos != last_encoder_pos)
-        {
-            /*printf("%ld Encoder %d\n", (long) now, pos);
-              fflush(stdout);*/
-        }
         if (!engaged)
         {
             if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
             {
                 motor->brake();
                 printf("\nEngage timeout!\n");
-                led_duty_cycle = 10;
-                led_period = 40;
+                led.set_params(10, 100, 40);
                 return false;
             }
             if (pos != start_pos)
@@ -125,8 +119,6 @@ bool do_calibration(bool fwd)
                 motor->brake();
                 printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
                 printf("\nHit limit\n");
-                led_period = LED_DEFAULT_PERIOD;
-                led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
                 return true;
             }
         }
@@ -135,8 +127,7 @@ bool do_calibration(bool fwd)
         {
             motor->brake();
             printf("\nTimeout!\n");
-            led_period = 10;
-            led_duty_cycle = 10;
+            led.set_params(10, 100, 10);
             return false;
         }
     }
@@ -147,8 +138,7 @@ static int calibrate(int argc, char** argv)
     printf("Calibrating...\n");
 
     // We assume that current state is unlocked, so first step is to lock
-    led_period = 1;
-    led_duty_cycle = 50;
+    led.set_params(50, 100, 1);
     bool ok = do_calibration(true);
     motor->brake();
     if (!ok)
@@ -182,8 +172,9 @@ static int calibrate(int argc, char** argv)
 
     unlocked_position = encoder_position.load();
     
-    led_period = LED_DEFAULT_PERIOD;
-    led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                   LED_DEFAULT_DUTY_CYCLE_DEN,
+                   LED_DEFAULT_PERIOD);
 
     printf("Locked %d Unlocked %d\n", locked_position, unlocked_position);
     
@@ -309,8 +300,7 @@ bool rotate_to(bool fwd, int position)
             {
                 motor->brake();
                 printf("\nEngage timeout!\n");
-                led_duty_cycle = 10;
-                led_period = 40;
+                led.set_params(10, 100, 40);
                 return false;
             }
             if (pos != start_pos)
@@ -352,8 +342,7 @@ bool rotate_to(bool fwd, int position)
 
 static int lock(int, char**)
 {
-    led_period = 1;
-    led_duty_cycle = 50;
+    led.set_params(50, 100, 1);
     if (!rotate_to(true, locked_position))
         return 1;
     // Back off
@@ -363,16 +352,16 @@ static int lock(int, char**)
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
     printf("Backed off\n");
-    led_period = LED_DEFAULT_PERIOD;
-    led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                   LED_DEFAULT_DUTY_CYCLE_DEN,
+                   LED_DEFAULT_PERIOD);
     printf("done\n");
     return 0;
 }
 
 static int unlock(int, char**)
 {
-    led_period = 1;
-    led_duty_cycle = 10;
+    led.set_params(10, 100, 1);
     if (!rotate_to(false, unlocked_position))
         return 1;
     // Back off
@@ -382,8 +371,9 @@ static int unlock(int, char**)
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
     printf("Backed off\n");
-    led_period = LED_DEFAULT_PERIOD;
-    led_duty_cycle = LED_DEFAULT_DUTY_CYCLE;
+    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                   LED_DEFAULT_DUTY_CYCLE_DEN,
+                   LED_DEFAULT_PERIOD);
     printf("done\n");
     return 0;
 }

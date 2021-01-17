@@ -33,8 +33,9 @@ extern "C" void app_main()
 
     motor = new Motor(AIN1, AIN2, PWMA, STBY);
     
-    led.set_period(LED_DEFAULT_PERIOD);
-    led.set_duty_cycle(LED_DEFAULT_DUTY_CYCLE);
+    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                   LED_DEFAULT_DUTY_CYCLE_DEN,
+                   LED_DEFAULT_PERIOD);
 
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
     xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
