@@ -1,3 +1,4 @@
+#include <cmath>
 #include <stdio.h>
 #include <string.h>
 
@@ -86,7 +87,7 @@ static int calibrate(int argc, char** argv)
     const auto start_pos = encoder_position.load();
     bool engaged = false;
     motor->drive(pwr);
-    const int MAX_TOTAL_TIME = 5000; // ms
+    const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
     const int MAX_ENGAGE_TIME = 2000; // ms
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
@@ -135,7 +136,7 @@ static int calibrate(int argc, char** argv)
             }
         }
         last_encoder_pos = pos;
-        if (now - start_tick > MAX_TOTAL_TIME/portTICK_PERIOD_MS)
+        if (fabs(pos - start_pos) > MAX_TOTAL_PULSES)
         {
             motor->brake();
             printf("\nTimeout!\n");
