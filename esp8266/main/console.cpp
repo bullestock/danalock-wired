@@ -14,6 +14,8 @@
 #include "driver/uart.h"
 #include "linenoise/linenoise.h"
 #include "argtable3/argtable3.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 
 struct
 {
@@ -36,7 +38,9 @@ struct
 int motor_power = 500;
 int no_rotation_timeout = 275;
 int locked_position = 0;
+bool locked_position_set = false;
 int unlocked_position = 0;
+bool unlocked_position_set = false;
 
 static int set_power(int argc, char** argv)
 {
@@ -177,7 +181,13 @@ static int calibrate(int argc, char** argv)
                    LED_DEFAULT_PERIOD);
 
     printf("Locked %d Unlocked %d\n", locked_position, unlocked_position);
-    
+
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_set_i32(my_handle, LOCKED_POSITION_KEY, locked_position));
+    auto err = nvs_set_i32(my_handle, UNLOCKED_POSITION_KEY, unlocked_position);
+    printf("set: %d %s\n", err, esp_err_to_name(err));
+    nvs_close(my_handle);    
     return 0;
 }
 
@@ -393,6 +403,47 @@ static int read_encoder(int, char**)
 
 void initialize_console()
 {
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
+    int32_t val = 0;
+    err = nvs_get_i32(my_handle, LOCKED_POSITION_KEY, &val);
+    switch (err)
+    {
+    case ESP_OK:
+        locked_position = val;
+        locked_position_set = true;
+        printf("locked_position %d\n", locked_position);
+        break;
+    case ESP_ERR_NVS_NOT_FOUND:
+        break;
+    default:
+        printf("NVS error %d\n", err);
+        break;
+    }
+    err = nvs_get_i32(my_handle, UNLOCKED_POSITION_KEY, &val);
+    switch (err)
+    {
+    case ESP_OK:
+        unlocked_position = val;
+        unlocked_position_set = true;
+        printf("unlocked_position %d\n", unlocked_position);
+        break;
+    case ESP_ERR_NVS_NOT_FOUND:
+        break;
+    default:
+        printf("NVS error %d\n", err);
+        break;
+    }
+    nvs_close(my_handle);
+    
     // Disable buffering on stdin
     setvbuf(stdin, NULL, _IONBF, 0);
 

@@ -16,6 +16,10 @@ constexpr const int CALIBRATE_POWER = 250;
 /// Number of ticks to back off after hitting limit
 constexpr const int BACKOFF_TICKS = 500;
 
+/// Keys for NVS
+constexpr const char* LOCKED_POSITION_KEY = "lock_pos";
+constexpr const char* UNLOCKED_POSITION_KEY = "unlock_pos";
+
 extern Motor* motor;
 extern Encoder encoder;
 extern Led led;
