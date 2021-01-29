@@ -17,6 +17,8 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
+#define VERBOSE 0
+
 struct
 {
     struct arg_int* power;
@@ -57,7 +59,7 @@ static int set_power(int argc, char** argv)
         return 1;
     }
     motor_power = pwr;
-    printf("Power set to %d\n", motor_power);
+    printf("OK: power set to %d\n", motor_power);
     return 0;
 }
 
@@ -76,14 +78,15 @@ static int set_no_rotation_timeout(int argc, char** argv)
         return 1;
     }
     no_rotation_timeout = to;
-    printf("No rotation timeout set to %d\n", no_rotation_timeout);
+    printf("OK: no rotation timeout set to %d\n", no_rotation_timeout);
     return 0;
 }
 
 bool do_calibration(bool fwd)
 {
     const auto pwr = fwd ? CALIBRATE_POWER : -CALIBRATE_POWER;
-    printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
+    if (VERBOSE)
+        printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_tick = xTaskGetTickCount();
     const auto start_pos = encoder_position.load();
     bool engaged = false;
@@ -101,6 +104,10 @@ bool do_calibration(bool fwd)
             if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
             {
                 motor->brake();
+                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+                motor->drive(pwr);
+                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+                motor->brake();
                 printf("\nEngage timeout!\n");
                 led.set_params(10, 100, 40);
                 return false;
@@ -108,7 +115,8 @@ bool do_calibration(bool fwd)
             if (pos != start_pos)
             {
                 engaged = true;
-                printf("\n%ld Engaged\n", (long) now);
+                if (VERBOSE)
+                    printf("\n%ld Engaged\n", (long) now);
                 last_position_change = now;
             }
         }
@@ -121,8 +129,11 @@ bool do_calibration(bool fwd)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
-                printf("\nHit limit\n");
+                if (VERBOSE)
+                {
+                    printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
+                    printf("\nHit limit\n");
+                }
                 return true;
             }
         }
@@ -139,7 +150,8 @@ bool do_calibration(bool fwd)
 
 static int calibrate(int argc, char** argv)
 {
-    printf("Calibrating...\n");
+    if (VERBOSE)
+        printf("Calibrating...\n");
 
     // We assume that current state is unlocked, so first step is to lock
     led.set_params(50, 100, 1);
@@ -151,11 +163,13 @@ static int calibrate(int argc, char** argv)
     // Back off
     motor->brake();
     vTaskDelay(BACKOFF_TICKS);
-    printf("Back off from %d\n", encoder_position.load());
+    if (VERBOSE)
+        printf("Back off from %d\n", encoder_position.load());
     motor->drive(-CALIBRATE_POWER);
     vTaskDelay(2*BACKOFF_TICKS);
     motor->brake();
-    printf("Backed off to %d\n", encoder_position.load());
+    if (VERBOSE)
+        printf("Backed off to %d\n", encoder_position.load());
     vTaskDelay(BACKOFF_TICKS);
 
     locked_position = encoder_position.load();
@@ -168,11 +182,13 @@ static int calibrate(int argc, char** argv)
 
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    printf("Back off from %d\n", encoder_position.load());
+    if (VERBOSE)
+        printf("Back off from %d\n", encoder_position.load());
     motor->drive(CALIBRATE_POWER);
     vTaskDelay(2*BACKOFF_TICKS);
     motor->brake();
-    printf("Backed off to %d\n", encoder_position.load());
+    if (VERBOSE)
+        printf("Backed off to %d\n", encoder_position.load());
 
     unlocked_position = encoder_position.load();
     
@@ -180,48 +196,15 @@ static int calibrate(int argc, char** argv)
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
 
-    printf("Locked %d Unlocked %d\n", locked_position, unlocked_position);
-
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
     ESP_ERROR_CHECK(nvs_set_i32(my_handle, LOCKED_POSITION_KEY, locked_position));
-    auto err = nvs_set_i32(my_handle, UNLOCKED_POSITION_KEY, unlocked_position);
-    printf("set: %d %s\n", err, esp_err_to_name(err));
+    ESP_ERROR_CHECK(nvs_set_i32(my_handle, UNLOCKED_POSITION_KEY, unlocked_position));
     nvs_close(my_handle);    
-    return 0;
-}
 
-// Encoder lag:
-// Power  Lag [ms]
-//  400   1800
-//  500   1400
-//  800    800
-void wait(int ms)
-{
-    const int slice = 10;
-    int k = 0;
-    const auto start_pos = encoder_position.load();
-    const auto start_tick = xTaskGetTickCount();
-    bool moved = false;
-    TickType_t moved_tick = 0;
-    for (int n = 0; n < ms/slice; ++n)
-    {
-        const auto pos = encoder_position.load();
-        if (!moved && pos != start_pos)
-        {
-            moved_tick = xTaskGetTickCount();
-            moved = true;
-        }
-        vTaskDelay(slice/portTICK_PERIOD_MS);
-        if (++k > 10)
-        {
-            printf("Encoder %d\r", pos);
-            fflush(stdout);
-            k = 0;
-        }
-    }
-    printf("\n%d ticks to engage\n", int(moved_tick - start_tick));
-    printf("Pulses %d\n", int(encoder_position.load() - start_pos));
+    printf("OK: locked %d Unlocked %d\n", locked_position, unlocked_position);
+
+    return 0;
 }
 
 // Power  Pulses in 5s
@@ -263,7 +246,8 @@ int rotate(int argc, char** argv)
         vTaskDelay(slice/portTICK_PERIOD_MS);
         if (++k > 10)
         {
-            printf("Encoder %d\n", pos);
+            if (VERBOSE)
+                printf("Encoder %d\n", pos);
             k = 0;
         }
         if (xTaskGetTickCount() - start_tick > MAX_TIME/portTICK_PERIOD_MS)
@@ -309,6 +293,10 @@ bool rotate_to(bool fwd, int position)
             if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
             {
                 motor->brake();
+                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+                motor->drive(fwd ? -motor_power : motor_power);
+                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+                motor->brake();
                 printf("\nEngage timeout!\n");
                 led.set_params(10, 100, 40);
                 return false;
@@ -316,7 +304,8 @@ bool rotate_to(bool fwd, int position)
             if (pos != start_pos)
             {
                 engaged = true;
-                printf("\n%ld Engaged\n", (long) now);
+                if (VERBOSE)
+                    printf("\n%ld Engaged\n", (long) now);
                 last_position_change = now;
             }
         }
@@ -329,8 +318,11 @@ bool rotate_to(bool fwd, int position)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
-                printf("\nHit limit\n");
+                if (VERBOSE)
+                {
+                    printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
+                    printf("\nHit limit\n");
+                }
                 return false;
             }
         }
@@ -357,15 +349,17 @@ static int lock(int, char**)
         return 1;
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    printf("Back off (%d)\n", motor_power);
+    if (VERBOSE)
+        printf("Back off (%d)\n", motor_power);
     motor->drive(-motor_power);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    printf("Backed off\n");
+    if (VERBOSE)
+        printf("Backed off\n");
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
-    printf("done\n");
+    printf("OK: locked\n");
     return 0;
 }
 
@@ -376,15 +370,17 @@ static int unlock(int, char**)
         return 1;
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    printf("Back off (%d)\n", motor_power);
+    if (VERBOSE)
+        printf("Back off (%d)\n", motor_power);
     motor->drive(motor_power);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    printf("Backed off\n");
+    if (VERBOSE)
+        printf("Backed off\n");
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
-    printf("done\n");
+    printf("OK: unlocked\n");
     return 0;
 }
 
@@ -394,8 +390,6 @@ static int read_encoder(int, char**)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
         printf("Encoder %d\n", encoder_position.load());
-        // if (fgetc(stdin) != EOF)
-        //     break;
     }
     printf("done\n");
     return 0;
@@ -420,7 +414,6 @@ void initialize_console()
     case ESP_OK:
         locked_position = val;
         locked_position_set = true;
-        printf("locked_position %d\n", locked_position);
         break;
     case ESP_ERR_NVS_NOT_FOUND:
         break;
@@ -434,7 +427,6 @@ void initialize_console()
     case ESP_OK:
         unlocked_position = val;
         unlocked_position_set = true;
-        printf("unlocked_position %d\n", unlocked_position);
         break;
     case ESP_ERR_NVS_NOT_FOUND:
         break;
@@ -564,7 +556,12 @@ extern "C" void console_task(void*)
 
     const char* prompt = "";
 
-    printf("Danalock " VERSION " ready: %d\n", (int) portTICK_PERIOD_MS);
+    printf("Danalock " VERSION " ready");
+    if (locked_position_set)
+        printf(" locked: %d", locked_position);
+    if (unlocked_position_set)
+        printf(" unlocked: %d", unlocked_position);
+    printf("\n");
 
     while (true)
     {
