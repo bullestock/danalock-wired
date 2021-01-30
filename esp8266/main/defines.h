@@ -17,13 +17,19 @@ constexpr const int CALIBRATE_POWER = 250;
 /// Number of ticks to back off after hitting limit
 constexpr const int BACKOFF_TICKS = 500;
 
-/// Keys for NVS
-constexpr const char* LOCKED_POSITION_KEY = "lock_pos";
+/// Keys for NVS (keep short)
+constexpr const char* LOCKED_POSITION_KEY =   "lock_pos";
 constexpr const char* UNLOCKED_POSITION_KEY = "unlock_pos";
+constexpr const char* DEFAULT_POWER_KEY =     "default_pwr";
 
 extern Motor* motor;
 extern Encoder encoder;
 extern Led led;
+extern int motor_power;
+extern int locked_position;
+extern bool locked_position_set;
+extern int unlocked_position;
+extern bool unlocked_position_set;
 
 /// Gets updated by encoder_task()
 extern std::atomic<int> encoder_position;

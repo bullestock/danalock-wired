@@ -51,12 +51,7 @@ struct
     struct arg_end* end;
 } reverse_args;
 
-int motor_power = 500;
 int no_rotation_timeout = 275;
-int locked_position = 0;
-bool locked_position_set = false;
-int unlocked_position = 0;
-bool unlocked_position_set = false;
 
 static int set_power(int argc, char** argv)
 {
@@ -73,6 +68,10 @@ static int set_power(int argc, char** argv)
         return 1;
     }
     motor_power = pwr;
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_set_i32(my_handle, DEFAULT_POWER_KEY, motor_power));
+    nvs_close(my_handle);    
     printf("OK: power set to %d\n", motor_power);
     return 0;
 }
@@ -414,6 +413,11 @@ bool rotate_to(bool fwd, int position)
 
 static int lock(int, char**)
 {
+    if (!locked_position_set)
+    {
+        printf("Error: not calibrated\n");
+        return 1;
+    }
     led.set_params(50, 100, 1);
     if (!rotate_to(false, locked_position))
         return 1;
@@ -435,6 +439,11 @@ static int lock(int, char**)
 
 static int unlock(int, char**)
 {
+    if (!unlocked_position_set)
+    {
+        printf("Error: not calibrated\n");
+        return 1;
+    }
     led.set_params(10, 100, 1);
     if (!rotate_to(true, unlocked_position))
         return 1;
@@ -474,45 +483,6 @@ static int read_encoder(int, char**)
 
 void initialize_console()
 {
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(err);
-
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
-    int32_t val = 0;
-    err = nvs_get_i32(my_handle, LOCKED_POSITION_KEY, &val);
-    switch (err)
-    {
-    case ESP_OK:
-        locked_position = val;
-        locked_position_set = true;
-        break;
-    case ESP_ERR_NVS_NOT_FOUND:
-        break;
-    default:
-        printf("NVS error %d\n", err);
-        break;
-    }
-    err = nvs_get_i32(my_handle, UNLOCKED_POSITION_KEY, &val);
-    switch (err)
-    {
-    case ESP_OK:
-        unlocked_position = val;
-        unlocked_position_set = true;
-        break;
-    case ESP_ERR_NVS_NOT_FOUND:
-        break;
-    default:
-        printf("NVS error %d\n", err);
-        break;
-    }
-    nvs_close(my_handle);
-    
     // Disable buffering on stdin
     setvbuf(stdin, NULL, _IONBF, 0);
 
@@ -665,13 +635,6 @@ extern "C" void console_task(void*)
     ESP_ERROR_CHECK(esp_console_cmd_register(&toggle_verbose_cmd));
 
     const char* prompt = "";
-
-    printf("Danalock " VERSION " ready");
-    if (locked_position_set)
-        printf(" locked: %d", locked_position);
-    if (unlocked_position_set)
-        printf(" unlocked: %d", unlocked_position);
-    printf("\n");
 
     while (true)
     {
