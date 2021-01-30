@@ -17,7 +17,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-#define VERBOSE 0
+bool verbose = false;
 
 struct
 {
@@ -36,6 +36,20 @@ struct
     struct arg_int* degrees;
     struct arg_end* end;
 } rotate_args;
+
+struct
+{
+    struct arg_int* power;
+    struct arg_int* milliseconds;
+    struct arg_end* end;
+} forward_args;
+
+struct
+{
+    struct arg_int* power;
+    struct arg_int* milliseconds;
+    struct arg_end* end;
+} reverse_args;
 
 int motor_power = 500;
 int no_rotation_timeout = 275;
@@ -82,17 +96,28 @@ static int set_no_rotation_timeout(int argc, char** argv)
     return 0;
 }
 
+static void backoff(int pwr)
+{
+    motor->brake();
+    vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+    motor->drive(pwr);
+    vTaskDelay(2*BACKOFF_TICKS/portTICK_PERIOD_MS);
+    motor->brake();
+}
+
+// true -> lock
 bool do_calibration(bool fwd)
 {
-    const auto pwr = fwd ? CALIBRATE_POWER : -CALIBRATE_POWER;
-    if (VERBOSE)
+    const auto pwr = fwd ? -CALIBRATE_POWER : CALIBRATE_POWER;
+    if (verbose)
         printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_tick = xTaskGetTickCount();
+    if (verbose)
+        printf("- start %ld\n", (long) start_tick);
     const auto start_pos = encoder_position.load();
     bool engaged = false;
     motor->drive(pwr);
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
-    const int MAX_ENGAGE_TIME = 2000; // ms
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
     while (1)
@@ -103,19 +128,17 @@ bool do_calibration(bool fwd)
         {
             if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
             {
-                motor->brake();
-                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
-                motor->drive(pwr);
-                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
-                motor->brake();
+                backoff(-pwr);
                 printf("\nEngage timeout!\n");
+                if (verbose)
+                    printf("- now %ld\n", (long) now);
                 led.set_params(10, 100, 40);
                 return false;
             }
             if (pos != start_pos)
             {
                 engaged = true;
-                if (VERBOSE)
+                if (verbose)
                     printf("\n%ld Engaged\n", (long) now);
                 last_position_change = now;
             }
@@ -128,19 +151,17 @@ bool do_calibration(bool fwd)
             }
             else if (now - last_position_change > no_rotation_timeout)
             {
-                motor->brake();
-                if (VERBOSE)
-                {
+                backoff(-pwr);
+                if (verbose)
                     printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
-                    printf("\nHit limit\n");
-                }
+                printf("\nHit limit\n");
                 return true;
             }
         }
         last_encoder_pos = pos;
         if (fabs(pos - start_pos) > MAX_TOTAL_PULSES)
         {
-            motor->brake();
+            backoff(-pwr);
             printf("\nTimeout!\n");
             led.set_params(10, 100, 10);
             return false;
@@ -150,7 +171,7 @@ bool do_calibration(bool fwd)
 
 static int calibrate(int argc, char** argv)
 {
-    if (VERBOSE)
+    if (verbose)
         printf("Calibrating...\n");
 
     // We assume that current state is unlocked, so first step is to lock
@@ -163,12 +184,12 @@ static int calibrate(int argc, char** argv)
     // Back off
     motor->brake();
     vTaskDelay(BACKOFF_TICKS);
-    if (VERBOSE)
+    if (verbose)
         printf("Back off from %d\n", encoder_position.load());
     motor->drive(-CALIBRATE_POWER);
     vTaskDelay(2*BACKOFF_TICKS);
     motor->brake();
-    if (VERBOSE)
+    if (verbose)
         printf("Backed off to %d\n", encoder_position.load());
     vTaskDelay(BACKOFF_TICKS);
 
@@ -182,12 +203,12 @@ static int calibrate(int argc, char** argv)
 
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    if (VERBOSE)
+    if (verbose)
         printf("Back off from %d\n", encoder_position.load());
     motor->drive(CALIBRATE_POWER);
     vTaskDelay(2*BACKOFF_TICKS);
     motor->brake();
-    if (VERBOSE)
+    if (verbose)
         printf("Backed off to %d\n", encoder_position.load());
 
     unlocked_position = encoder_position.load();
@@ -246,7 +267,7 @@ int rotate(int argc, char** argv)
         vTaskDelay(slice/portTICK_PERIOD_MS);
         if (++k > 10)
         {
-            if (VERBOSE)
+            if (verbose)
                 printf("Encoder %d\n", pos);
             k = 0;
         }
@@ -258,6 +279,60 @@ int rotate(int argc, char** argv)
     }
     motor->brake();
     return 0;
+}
+
+int do_drive(int sign, int pwr, int ms)
+{
+    motor->drive(sign * pwr);
+    vTaskDelay(ms/portTICK_PERIOD_MS);
+    motor->brake();
+    return 0;
+}
+
+int forward(int argc, char** argv)
+{
+    int nerrors = arg_parse(argc, argv, (void**) &forward_args);
+    if (nerrors != 0)
+    {
+        arg_print_errors(stderr, forward_args.end, argv[0]);
+        return 1;
+    }
+    const auto pwr = forward_args.power->ival[0];
+    if (pwr < 0 || pwr > 1000)
+    {
+        printf("Invalid power value\n");
+        return 1;
+    }
+    const auto ms = forward_args.milliseconds->ival[0];
+    if (ms < 100 || ms > 5000)
+    {
+        printf("Invalid milliseconds value\n");
+        return 1;
+    }
+    return do_drive(1, pwr, ms);
+}
+
+int reverse(int argc, char** argv)
+{
+    int nerrors = arg_parse(argc, argv, (void**) &reverse_args);
+    if (nerrors != 0)
+    {
+        arg_print_errors(stderr, reverse_args.end, argv[0]);
+        return 1;
+    }
+    const auto pwr = reverse_args.power->ival[0];
+    if (pwr < 0 || pwr > 1000)
+    {
+        printf("Invalid power value\n");
+        return 1;
+    }
+    const auto ms = reverse_args.milliseconds->ival[0];
+    if (ms < 100 || ms > 5000)
+    {
+        printf("Invalid milliseconds value\n");
+        return 1;
+    }
+    return do_drive(-1, pwr, ms);
 }
 
 bool rotate_to(bool fwd, int position)
@@ -280,7 +355,8 @@ bool rotate_to(bool fwd, int position)
 
     const auto start_tick = xTaskGetTickCount();
     bool engaged = false;
-    motor->drive(fwd ? motor_power : -motor_power);
+    const int pwr = fwd ? motor_power : -motor_power;
+    motor->drive(pwr);
     const int MAX_ENGAGE_TIME = 2000; // ms
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
@@ -292,11 +368,7 @@ bool rotate_to(bool fwd, int position)
         {
             if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
             {
-                motor->brake();
-                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
-                motor->drive(fwd ? -motor_power : motor_power);
-                vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
-                motor->brake();
+                backoff(-pwr);
                 printf("\nEngage timeout!\n");
                 led.set_params(10, 100, 40);
                 return false;
@@ -304,7 +376,7 @@ bool rotate_to(bool fwd, int position)
             if (pos != start_pos)
             {
                 engaged = true;
-                if (VERBOSE)
+                if (verbose)
                     printf("\n%ld Engaged\n", (long) now);
                 last_position_change = now;
             }
@@ -317,12 +389,10 @@ bool rotate_to(bool fwd, int position)
             }
             else if (now - last_position_change > no_rotation_timeout)
             {
-                motor->brake();
-                if (VERBOSE)
-                {
+                backoff(-pwr);
+                if (verbose)
                     printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
-                    printf("\nHit limit\n");
-                }
+                printf("\nHit limit\n");
                 return false;
             }
         }
@@ -330,7 +400,7 @@ bool rotate_to(bool fwd, int position)
         const auto steps_total = fabs(pos - start_pos);
         if (steps_total > MAX_TOTAL_PULSES)
         {
-            motor->brake();
+            backoff(-pwr);
             printf("\nTimeout!\n");
             return false;
         }
@@ -345,16 +415,16 @@ bool rotate_to(bool fwd, int position)
 static int lock(int, char**)
 {
     led.set_params(50, 100, 1);
-    if (!rotate_to(true, locked_position))
+    if (!rotate_to(false, locked_position))
         return 1;
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    if (VERBOSE)
+    if (verbose)
         printf("Back off (%d)\n", motor_power);
-    motor->drive(-motor_power);
+    motor->drive(motor_power);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    if (VERBOSE)
+    if (verbose)
         printf("Backed off\n");
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
@@ -366,21 +436,28 @@ static int lock(int, char**)
 static int unlock(int, char**)
 {
     led.set_params(10, 100, 1);
-    if (!rotate_to(false, unlocked_position))
+    if (!rotate_to(true, unlocked_position))
         return 1;
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    if (VERBOSE)
+    if (verbose)
         printf("Back off (%d)\n", motor_power);
-    motor->drive(motor_power);
+    motor->drive(-motor_power);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    if (VERBOSE)
+    if (verbose)
         printf("Backed off\n");
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
     printf("OK: unlocked\n");
+    return 0;
+}
+
+static int toggle_verbose(int, char**)
+{
+    verbose = !verbose;
+    printf("Verbose is %s\n", verbose ? "on" : "off");
     return 0;
 }
 
@@ -511,12 +588,36 @@ extern "C" void console_task(void*)
     rotate_args.end = arg_end(2);
     const esp_console_cmd_t rotate_cmd = {
         .command = "rotate",
-        .help = "Rotate degrees",
+        .help = "Rotate <degrees>",
         .hint = nullptr,
         .func = &rotate,
         .argtable = &rotate_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&rotate_cmd));
+
+    forward_args.power = arg_int1(NULL, NULL, "<power>", "Power");
+    forward_args.milliseconds = arg_int1(NULL, NULL, "<milliseconds>", "Milliseconds");
+    forward_args.end = arg_end(3);
+    const esp_console_cmd_t forward_cmd = {
+        .command = "forward",
+        .help = "Run forward at <power> for <milliseconds>",
+        .hint = nullptr,
+        .func = &forward,
+        .argtable = &forward_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&forward_cmd));
+
+    reverse_args.power = arg_int1(NULL, NULL, "<power>", "Power");
+    reverse_args.milliseconds = arg_int1(NULL, NULL, "<milliseconds>", "Milliseconds");
+    reverse_args.end = arg_end(3);
+    const esp_console_cmd_t reverse_cmd = {
+        .command = "reverse",
+        .help = "Run in reverse at <power> for <milliseconds>",
+        .hint = nullptr,
+        .func = &reverse,
+        .argtable = &reverse_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&reverse_cmd));
 
     const esp_console_cmd_t read_encoder_cmd = {
         .command = "read_encoder",
@@ -553,6 +654,15 @@ extern "C" void console_task(void*)
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&unlock_cmd));
+
+    const esp_console_cmd_t toggle_verbose_cmd = {
+        .command = "toggle_verbose",
+        .help = "Toggle verbosity",
+        .hint = nullptr,
+        .func = &toggle_verbose,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&toggle_verbose_cmd));
 
     const char* prompt = "";
 
