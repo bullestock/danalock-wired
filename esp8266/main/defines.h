@@ -18,8 +18,6 @@ constexpr const int CALIBRATE_POWER = 250;
 constexpr const int BACKOFF_TICKS = 500;
 
 /// Keys for NVS (keep short)
-constexpr const char* LOCKED_POSITION_KEY =   "lock_pos";
-constexpr const char* UNLOCKED_POSITION_KEY = "unlock_pos";
 constexpr const char* DEFAULT_POWER_KEY =     "default_pwr";
 
 extern Motor* motor;

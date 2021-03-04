@@ -19,6 +19,10 @@
 
 bool verbose = false;
 
+int locked_position = 0;
+int unlocked_position = 0;
+bool is_calibrated = false;
+
 struct
 {
     struct arg_int* power;
@@ -216,14 +220,10 @@ static int calibrate(int argc, char** argv)
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
 
-    nvs_handle my_handle;
-    ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
-    ESP_ERROR_CHECK(nvs_set_i32(my_handle, LOCKED_POSITION_KEY, locked_position));
-    ESP_ERROR_CHECK(nvs_set_i32(my_handle, UNLOCKED_POSITION_KEY, unlocked_position));
-    nvs_close(my_handle);    
-
     printf("OK: locked %d Unlocked %d\n", locked_position, unlocked_position);
 
+    is_calibrated = true;
+    
     return 0;
 }
 
@@ -413,7 +413,7 @@ bool rotate_to(bool fwd, int position)
 
 static int lock(int, char**)
 {
-    if (!locked_position_set)
+    if (!is_calibrated)
     {
         printf("Error: not calibrated\n");
         return 1;
@@ -439,7 +439,7 @@ static int lock(int, char**)
 
 static int unlock(int, char**)
 {
-    if (!unlocked_position_set)
+    if (!is_calibrated)
     {
         printf("Error: not calibrated\n");
         return 1;

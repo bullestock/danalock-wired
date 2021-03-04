@@ -29,10 +29,6 @@ Led led(LED);
 Motor* motor = nullptr;
 
 int motor_power = 500;
-int locked_position = 0;
-bool locked_position_set = false;
-int unlocked_position = 0;
-bool unlocked_position_set = false;
 
 extern "C" void app_main()
 {
@@ -49,34 +45,8 @@ extern "C" void app_main()
 
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
-    int32_t val = 0;
-    err = nvs_get_i32(my_handle, LOCKED_POSITION_KEY, &val);
-    switch (err)
-    {
-    case ESP_OK:
-        locked_position = val;
-        locked_position_set = true;
-        break;
-    case ESP_ERR_NVS_NOT_FOUND:
-        break;
-    default:
-        printf("%s: NVS error %d\n", LOCKED_POSITION_KEY, err);
-        break;
-    }
-    err = nvs_get_i32(my_handle, UNLOCKED_POSITION_KEY, &val);
-    switch (err)
-    {
-    case ESP_OK:
-        unlocked_position = val;
-        unlocked_position_set = true;
-        break;
-    case ESP_ERR_NVS_NOT_FOUND:
-        break;
-    default:
-        printf("%s: NVS error %d\n", UNLOCKED_POSITION_KEY, err);
-        break;
-    }
     bool default_power_set = false;
+    int32_t val = 0;
     err = nvs_get_i32(my_handle, DEFAULT_POWER_KEY, &val);
     switch (err)
     {
@@ -99,10 +69,6 @@ extern "C" void app_main()
                    LED_DEFAULT_PERIOD);
 
     printf("Danalock " VERSION " ready");
-    if (locked_position_set)
-        printf(" locked: %d", locked_position);
-    if (unlocked_position_set)
-        printf(" unlocked: %d", unlocked_position);
     if (default_power_set)
         printf(" power: %d", motor_power);
     printf("\n");
