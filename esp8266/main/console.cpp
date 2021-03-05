@@ -17,7 +17,25 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-bool verbose = false;
+int verbosity = 0;
+
+void verbose_printf(const char* format, ...)
+{
+    if (verbosity == 0)
+        return;
+    printf("%ld ", (long) xTaskGetTickCount());
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+}
+
+void verbose_wait()
+{
+    if (verbosity < 2)
+        return;
+    vTaskDelay(1000);
+}
 
 int locked_position = 0;
 int unlocked_position = 0;
@@ -54,6 +72,12 @@ struct
     struct arg_int* milliseconds;
     struct arg_end* end;
 } reverse_args;
+
+struct
+{
+    struct arg_int* verbosity;
+    struct arg_end* end;
+} set_verbosity_args;
 
 int no_rotation_timeout = 275;
 
@@ -101,10 +125,14 @@ static int set_no_rotation_timeout(int argc, char** argv)
 
 static void backoff(int pwr)
 {
+    verbose_printf("backoff(%d): brake\n", pwr);
     motor->brake();
+    verbose_printf("backoff(): wait\n");
     vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+    verbose_printf("backoff(): drive\n");
     motor->drive(pwr);
     vTaskDelay(2*BACKOFF_TICKS/portTICK_PERIOD_MS);
+    verbose_printf("backoff(): brake\n");
     motor->brake();
 }
 
@@ -112,11 +140,9 @@ static void backoff(int pwr)
 bool do_calibration(bool fwd)
 {
     const auto pwr = fwd ? -CALIBRATE_POWER : CALIBRATE_POWER;
-    if (verbose)
-        printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
+    verbose_printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_tick = xTaskGetTickCount();
-    if (verbose)
-        printf("- start %ld\n", (long) start_tick);
+    verbose_printf("- start %ld\n", (long) start_tick);
     const auto start_pos = encoder_position.load();
     bool engaged = false;
     motor->drive(pwr);
@@ -131,18 +157,16 @@ bool do_calibration(bool fwd)
         {
             if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
             {
-                backoff(-pwr);
                 printf("\nEngage timeout!\n");
-                if (verbose)
-                    printf("- now %ld\n", (long) now);
+                verbose_printf("- now\n");
+                backoff(-pwr);
                 led.set_params(10, 100, 40);
                 return false;
             }
             if (pos != start_pos)
             {
                 engaged = true;
-                if (verbose)
-                    printf("\n%ld Engaged\n", (long) now);
+                verbose_printf("Engaged\n");
                 last_position_change = now;
             }
         }
@@ -154,10 +178,11 @@ bool do_calibration(bool fwd)
             }
             else if (now - last_position_change > no_rotation_timeout)
             {
-                backoff(-pwr);
-                if (verbose)
-                    printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
+                motor->brake();
                 printf("\nHit limit\n");
+                verbose_wait();
+                backoff(-pwr);
+                verbose_printf("last change %ld\n", (long) last_position_change);
                 return true;
             }
         }
@@ -174,8 +199,7 @@ bool do_calibration(bool fwd)
 
 static int calibrate(int argc, char** argv)
 {
-    if (verbose)
-        printf("Calibrating...\n");
+    verbose_printf("Calibrating...\n");
 
     // We assume that current state is unlocked, so first step is to lock
     led.set_params(50, 100, 1);
@@ -186,14 +210,13 @@ static int calibrate(int argc, char** argv)
 
     // Back off
     motor->brake();
+    verbose_printf("Pause before back off\n");
     vTaskDelay(BACKOFF_TICKS);
-    if (verbose)
-        printf("Back off from %d\n", encoder_position.load());
-    motor->drive(-CALIBRATE_POWER);
-    vTaskDelay(2*BACKOFF_TICKS);
+    verbose_printf("Back off from %d\n", encoder_position.load());
+    motor->drive(CALIBRATE_POWER);
+    vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    if (verbose)
-        printf("Backed off to %d\n", encoder_position.load());
+    verbose_printf("Backed off to %d\n", encoder_position.load());
     vTaskDelay(BACKOFF_TICKS);
 
     locked_position = encoder_position.load();
@@ -205,14 +228,13 @@ static int calibrate(int argc, char** argv)
         return 1;
 
     // Back off
+    verbose_printf("Pause before back off\n");
     vTaskDelay(BACKOFF_TICKS);
-    if (verbose)
-        printf("Back off from %d\n", encoder_position.load());
-    motor->drive(CALIBRATE_POWER);
-    vTaskDelay(2*BACKOFF_TICKS);
+    verbose_printf("Back off from %d\n", encoder_position.load());
+    motor->drive(-CALIBRATE_POWER);
+    vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    if (verbose)
-        printf("Backed off to %d\n", encoder_position.load());
+    verbose_printf("Backed off to %d\n", encoder_position.load());
 
     unlocked_position = encoder_position.load();
     
@@ -266,8 +288,7 @@ int rotate(int argc, char** argv)
         vTaskDelay(slice/portTICK_PERIOD_MS);
         if (++k > 10)
         {
-            if (verbose)
-                printf("Encoder %d\n", pos);
+            verbose_printf("Encoder %d\n", pos);
             k = 0;
         }
         if (xTaskGetTickCount() - start_tick > MAX_TIME/portTICK_PERIOD_MS)
@@ -375,8 +396,7 @@ bool rotate_to(bool fwd, int position)
             if (pos != start_pos)
             {
                 engaged = true;
-                if (verbose)
-                    printf("\n%ld Engaged\n", (long) now);
+                verbose_printf("Engaged\n");
                 last_position_change = now;
             }
         }
@@ -388,10 +408,11 @@ bool rotate_to(bool fwd, int position)
             }
             else if (now - last_position_change > no_rotation_timeout)
             {
-                backoff(-pwr);
-                if (verbose)
-                    printf("now %ld last change %ld\n", (long) now, (long) last_position_change);
+                motor->brake();
                 printf("\nHit limit\n");
+                verbose_wait();
+                backoff(-pwr);
+                verbose_printf("last change %ld\n", (long) last_position_change);
                 return false;
             }
         }
@@ -423,13 +444,11 @@ static int lock(int, char**)
         return 1;
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    if (verbose)
-        printf("Back off (%d)\n", motor_power);
+    verbose_printf("Back off (%d)\n", motor_power);
     motor->drive(motor_power);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    if (verbose)
-        printf("Backed off\n");
+    verbose_printf("Backed off\n");
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
@@ -449,13 +468,11 @@ static int unlock(int, char**)
         return 1;
     // Back off
     vTaskDelay(BACKOFF_TICKS);
-    if (verbose)
-        printf("Back off (%d)\n", motor_power);
+    verbose_printf("Back off (%d)\n", motor_power);
     motor->drive(-motor_power);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
-    if (verbose)
-        printf("Backed off\n");
+    verbose_printf("Backed off\n");
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
@@ -463,10 +480,16 @@ static int unlock(int, char**)
     return 0;
 }
 
-static int toggle_verbose(int, char**)
+static int set_verbosity(int argc, char** argv)
 {
-    verbose = !verbose;
-    printf("Verbose is %s\n", verbose ? "on" : "off");
+    int nerrors = arg_parse(argc, argv, (void**) &set_verbosity_args);
+    if (nerrors != 0)
+    {
+        arg_print_errors(stderr, set_verbosity_args.end, argv[0]);
+        return 1;
+    }
+    verbosity = set_verbosity_args.verbosity->ival[0];
+    printf("Verbosity is %d\n", verbosity);
     return 0;
 }
 
@@ -625,14 +648,16 @@ extern "C" void console_task(void*)
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&unlock_cmd));
 
-    const esp_console_cmd_t toggle_verbose_cmd = {
-        .command = "toggle_verbose",
-        .help = "Toggle verbosity",
+    set_verbosity_args.verbosity = arg_int1(NULL, NULL, "<verbosity>", "Verbosity");
+    set_verbosity_args.end = arg_end(2);
+    const esp_console_cmd_t set_verbosity_cmd = {
+        .command = "set_verbosity",
+        .help = "Set verbosity",
         .hint = nullptr,
-        .func = &toggle_verbose,
-        .argtable = nullptr
+        .func = &set_verbosity,
+        .argtable = &set_verbosity_args
     };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&toggle_verbose_cmd));
+    ESP_ERROR_CHECK(esp_console_cmd_register(&set_verbosity_cmd));
 
     const char* prompt = "";
 

@@ -9,13 +9,13 @@
 constexpr const int LED_DEFAULT_PERIOD = 10;
 constexpr const int LED_DEFAULT_DUTY_CYCLE_NUM = 1;
 constexpr const int LED_DEFAULT_DUTY_CYCLE_DEN = 1000;
-constexpr const int MAX_ENGAGE_TIME = 2000; // ms
+constexpr const int MAX_ENGAGE_TIME = 2500; // ms
 
 /// Motor power for automatic calibration - reduced to avoid mechanical damage
 constexpr const int CALIBRATE_POWER = 250;
 
 /// Number of ticks to back off after hitting limit
-constexpr const int BACKOFF_TICKS = 500;
+constexpr const int BACKOFF_TICKS = 800;
 
 /// Keys for NVS (keep short)
 constexpr const char* DEFAULT_POWER_KEY =     "default_pwr";
