@@ -40,6 +40,12 @@ void verbose_wait()
 int locked_position = 0;
 int unlocked_position = 0;
 bool is_calibrated = false;
+enum State {
+    Unknown,
+    Locked,
+    Unlocked
+};
+State state = Unknown;
 
 struct
 {
@@ -199,6 +205,8 @@ bool do_calibration(bool fwd)
 
 static int calibrate(int argc, char** argv)
 {
+    state = Unknown;
+    
     verbose_printf("Calibrating...\n");
 
     // We assume that current state is unlocked, so first step is to lock
@@ -245,6 +253,7 @@ static int calibrate(int argc, char** argv)
     printf("OK: locked %d Unlocked %d\n", locked_position, unlocked_position);
 
     is_calibrated = true;
+    state = Unlocked;
     
     return 0;
 }
@@ -267,6 +276,8 @@ int rotate(int argc, char** argv)
         printf("Invalid degrees value\n");
         return 1;
     }
+
+    state = Unknown;
 
     const int sign = degrees < 0 ? -1 : 1;
     const int abs_degrees = abs(degrees);
@@ -329,6 +340,7 @@ int forward(int argc, char** argv)
         printf("Invalid milliseconds value\n");
         return 1;
     }
+    state = Unknown;
     return do_drive(1, pwr, ms);
 }
 
@@ -352,6 +364,7 @@ int reverse(int argc, char** argv)
         printf("Invalid milliseconds value\n");
         return 1;
     }
+    state = Unknown;
     return do_drive(-1, pwr, ms);
 }
 
@@ -439,19 +452,24 @@ static int lock(int, char**)
         printf("Error: not calibrated\n");
         return 1;
     }
-    led.set_params(50, 100, 1);
-    if (!rotate_to(false, locked_position))
-        return 1;
-    // Back off
-    vTaskDelay(BACKOFF_TICKS);
-    verbose_printf("Back off (%d)\n", motor_power);
-    motor->drive(motor_power);
-    vTaskDelay(BACKOFF_TICKS);
-    motor->brake();
-    verbose_printf("Backed off\n");
-    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
-                   LED_DEFAULT_DUTY_CYCLE_DEN,
-                   LED_DEFAULT_PERIOD);
+    if (state != Locked)
+    {
+        state = Unknown;
+        led.set_params(50, 100, 1);
+        if (!rotate_to(false, locked_position))
+            return 1;
+        // Back off
+        vTaskDelay(BACKOFF_TICKS);
+        verbose_printf("Back off (%d)\n", motor_power);
+        motor->drive(motor_power);
+        vTaskDelay(BACKOFF_TICKS);
+        motor->brake();
+        verbose_printf("Backed off\n");
+        led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                       LED_DEFAULT_DUTY_CYCLE_DEN,
+                       LED_DEFAULT_PERIOD);
+        state = Locked;
+    }
     printf("OK: locked\n");
     return 0;
 }
@@ -463,19 +481,24 @@ static int unlock(int, char**)
         printf("Error: not calibrated\n");
         return 1;
     }
-    led.set_params(10, 100, 1);
-    if (!rotate_to(true, unlocked_position))
-        return 1;
-    // Back off
-    vTaskDelay(BACKOFF_TICKS);
-    verbose_printf("Back off (%d)\n", motor_power);
-    motor->drive(-motor_power);
-    vTaskDelay(BACKOFF_TICKS);
-    motor->brake();
-    verbose_printf("Backed off\n");
-    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
-                   LED_DEFAULT_DUTY_CYCLE_DEN,
-                   LED_DEFAULT_PERIOD);
+    if (state != Unlocked)
+    {
+        state = Unknown;
+        led.set_params(10, 100, 1);
+        if (!rotate_to(true, unlocked_position))
+            return 1;
+        // Back off
+        vTaskDelay(BACKOFF_TICKS);
+        verbose_printf("Back off (%d)\n", motor_power);
+        motor->drive(-motor_power);
+        vTaskDelay(BACKOFF_TICKS);
+        motor->brake();
+        verbose_printf("Backed off\n");
+        led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                       LED_DEFAULT_DUTY_CYCLE_DEN,
+                       LED_DEFAULT_PERIOD);
+        state = Unlocked;
+    }
     printf("OK: unlocked\n");
     return 0;
 }
@@ -490,6 +513,12 @@ static int set_verbosity(int argc, char** argv)
     }
     verbosity = set_verbosity_args.verbosity->ival[0];
     printf("Verbosity is %d\n", verbosity);
+    return 0;
+}
+
+static int version(int, char**)
+{
+    printf("Danalock " VERSION "\n");
     return 0;
 }
 
@@ -546,6 +575,7 @@ void initialize_console()
     linenoiseSetCompletionCallback(&esp_console_get_completion);
     linenoiseSetHintsCallback((linenoiseHintsCallback*) &esp_console_get_hint);
     linenoiseHistorySetMaxLen(100);
+    linenoiseSetDumbMode(1);
 }
 
 extern "C" void console_task(void*)
@@ -658,6 +688,15 @@ extern "C" void console_task(void*)
         .argtable = &set_verbosity_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&set_verbosity_cmd));
+
+    const esp_console_cmd_t version_cmd = {
+        .command = "V",
+        .help = "Get version",
+        .hint = nullptr,
+        .func = &version,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&version_cmd));
 
     const char* prompt = "";
 
