@@ -185,7 +185,7 @@ bool do_calibration(bool fwd)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                printf("\nHit limit\n");
+                verbose_printf("\nHit limit\n");
                 verbose_wait();
                 backoff(-pwr);
                 verbose_printf("last change %ld\n", (long) last_position_change);
@@ -214,7 +214,7 @@ static int calibrate(int argc, char** argv)
     bool ok = do_calibration(true);
     motor->brake();
     if (!ok)
-        return 1;
+        return 0;
 
     // Back off
     motor->brake();
@@ -233,7 +233,7 @@ static int calibrate(int argc, char** argv)
     ok = do_calibration(false);
     motor->brake();
       if (!ok)
-        return 1;
+        return 0;
 
     // Back off
     verbose_printf("Pause before back off\n");
@@ -259,6 +259,15 @@ static int calibrate(int argc, char** argv)
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
 
+    return 0;
+}
+
+static int uncalibrate(int argc, char** argv)
+{
+    is_calibrated = false;
+
+    printf("OK\n");
+    
     return 0;
 }
 
@@ -308,8 +317,8 @@ int rotate(int argc, char** argv)
         }
         if (xTaskGetTickCount() - start_tick > MAX_TIME/portTICK_PERIOD_MS)
         {
-            printf("Timeout!\n");
-            return 1;
+            printf("Error: Timeout!\n");
+            return 0;
         }
     }
     motor->brake();
@@ -454,7 +463,7 @@ static int lock(int, char**)
     if (!is_calibrated)
     {
         printf("Error: not calibrated\n");
-        return 1;
+        return 0;
     }
     if (state != Locked)
     {
@@ -487,7 +496,7 @@ static int unlock(int, char**)
     if (!is_calibrated)
     {
         printf("Error: not calibrated\n");
-        return 1;
+        return 0;
     }
     if (state != Unlocked)
     {
@@ -671,6 +680,15 @@ extern "C" void console_task(void*)
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&calibrate_cmd));
+
+    const esp_console_cmd_t uncalibrate_cmd = {
+        .command = "uncalibrate",
+        .help = "Forget calibration",
+        .hint = nullptr,
+        .func = &uncalibrate,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&uncalibrate_cmd));
 
     const esp_console_cmd_t lock_cmd = {
         .command = "lock",
