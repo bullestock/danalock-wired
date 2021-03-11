@@ -28,7 +28,7 @@ Encoder encoder(ENC_A, ENC_B);
 Led led(LED);
 Motor* motor = nullptr;
 
-int motor_power = 500;
+int motor_power = 300;
 
 extern "C" void app_main()
 {
@@ -63,10 +63,9 @@ extern "C" void app_main()
     nvs_close(my_handle);
     
     motor = new Motor(AIN1, AIN2, PWMA, STBY);
-    
-    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
-                   LED_DEFAULT_DUTY_CYCLE_DEN,
-                   LED_DEFAULT_PERIOD);
+
+    // Not calibrated yet
+    led.set_params(50, 100, 1000);
 
     printf("Danalock " VERSION " ready");
     if (default_power_set)

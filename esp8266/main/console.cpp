@@ -255,6 +255,10 @@ static int calibrate(int argc, char** argv)
     is_calibrated = true;
     state = Unlocked;
     
+    led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
+                   LED_DEFAULT_DUTY_CYCLE_DEN,
+                   LED_DEFAULT_PERIOD);
+
     return 0;
 }
 
@@ -457,7 +461,11 @@ static int lock(int, char**)
         state = Unknown;
         led.set_params(50, 100, 1);
         if (!rotate_to(false, locked_position))
-            return 1;
+        {
+            printf("ERROR: could not lock\n");
+            rotate_to(true, unlocked_position);
+            return 0;
+        }
         // Back off
         vTaskDelay(BACKOFF_TICKS);
         verbose_printf("Back off (%d)\n", motor_power);
@@ -486,7 +494,11 @@ static int unlock(int, char**)
         state = Unknown;
         led.set_params(10, 100, 1);
         if (!rotate_to(true, unlocked_position))
-            return 1;
+        {
+            printf("ERROR: could not unlock\n");
+            rotate_to(false, locked_position);
+            return 0;
+        }
         // Back off
         vTaskDelay(BACKOFF_TICKS);
         verbose_printf("Back off (%d)\n", motor_power);
