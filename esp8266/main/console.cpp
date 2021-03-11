@@ -1,6 +1,8 @@
 #include <cmath>
 #include <stdio.h>
 #include <string.h>
+#include <string>
+#include <utility>
 
 #include "defines.h"
 #include "motor.h"
@@ -381,7 +383,7 @@ int reverse(int argc, char** argv)
     return do_drive(-1, pwr, ms);
 }
 
-bool rotate_to(bool fwd, int position)
+std::pair<bool, std::string> rotate_to(bool fwd, int position)
 {
     const auto start_pos = encoder_position.load();
     if ((fwd && (position < start_pos)) ||
@@ -389,14 +391,14 @@ bool rotate_to(bool fwd, int position)
     {
         printf("Impossible: Forward %d, current position %d, requested %d\n",
                fwd, start_pos, position);
-        return false;
+        return std::make_pair(false, "impossible move");
     }
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
     const int steps_needed = fabs(position - start_pos);
     if (steps_needed > MAX_TOTAL_PULSES)
     {
         printf("Impossible: Distance %d\n", steps_needed);
-        return false;
+        return std::make_pair(false, "move too large");
     }
 
     const auto start_tick = xTaskGetTickCount();
@@ -417,7 +419,7 @@ bool rotate_to(bool fwd, int position)
                 backoff(-pwr);
                 printf("\nEngage timeout!\n");
                 led.set_params(10, 100, 40);
-                return false;
+                return std::make_pair(false, "engage timeout");
             }
             if (pos != start_pos)
             {
@@ -435,11 +437,11 @@ bool rotate_to(bool fwd, int position)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                printf("\nHit limit\n");
+                verbose_printf("\nHit limit\n");
                 verbose_wait();
                 backoff(-pwr);
                 verbose_printf("last change %ld\n", (long) last_position_change);
-                return false;
+                return std::make_pair(false, "hit limit");
             }
         }
         last_encoder_pos = pos;
@@ -448,14 +450,14 @@ bool rotate_to(bool fwd, int position)
         {
             backoff(-pwr);
             printf("\nTimeout!\n");
-            return false;
+            return std::make_pair(false, "limit timeout");
         }
         if (steps_total >= steps_needed)
             break;
     }
 
     motor->brake();
-    return true;
+    return std::make_pair(true, "");
 }
 
 static int lock(int, char**)
@@ -469,9 +471,10 @@ static int lock(int, char**)
     {
         state = Unknown;
         led.set_params(50, 100, 1);
-        if (!rotate_to(false, locked_position))
+        const auto res = rotate_to(false, locked_position);
+        if (!res.first)
         {
-            printf("ERROR: could not lock\n");
+            printf("ERROR: could not lock: %s\n", res.second.c_str());
             rotate_to(true, unlocked_position);
             return 0;
         }
@@ -502,9 +505,10 @@ static int unlock(int, char**)
     {
         state = Unknown;
         led.set_params(10, 100, 1);
-        if (!rotate_to(true, unlocked_position))
+        const auto res = rotate_to(true, unlocked_position);
+        if (!res.first)
         {
-            printf("ERROR: could not unlock\n");
+            printf("ERROR: could not unlock: %s\n", res.second.c_str());
             rotate_to(false, locked_position);
             return 0;
         }
