@@ -39,8 +39,8 @@ void verbose_wait()
     vTaskDelay(1000);
 }
 
-int locked_position = 0;
-int unlocked_position = 0;
+std::pair<int, int> locked_position = std::make_pair(0, 0);
+std::pair<int, int> unlocked_position = std::make_pair(0, 0);
 bool is_calibrated = false;
 enum State {
     Unknown,
@@ -221,6 +221,7 @@ static int calibrate(int argc, char** argv)
 
     // Use this position as zero
     reset_encoder.store(true);
+    locked_position.first = 0;
     
     // Back off
     motor->brake();
@@ -233,13 +234,14 @@ static int calibrate(int argc, char** argv)
     verbose_printf("Backed off to %d\n", encoder_position.load());
     vTaskDelay(BACKOFF_TICKS);
 
-    locked_position = encoder_position.load();
+    locked_position.second = encoder_position.load();
     
     // Now unlock
     ok = do_calibration(false);
     motor->brake();
-      if (!ok)
+    if (!ok)
         return 0;
+    unlocked_position.second = encoder_position.load();
 
     // Back off
     verbose_printf("Pause before back off\n");
@@ -250,13 +252,15 @@ static int calibrate(int argc, char** argv)
     motor->brake();
     verbose_printf("Backed off to %d\n", encoder_position.load());
 
-    unlocked_position = encoder_position.load();
+    unlocked_position.first = encoder_position.load();
     
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
 
-    printf("OK: locked %d Unlocked %d\n", locked_position, unlocked_position);
+    printf("OK: locked %d-%d Unlocked %d-%d\n",
+           locked_position.first, locked_position.second,
+           unlocked_position.first, unlocked_position.second);
 
     is_calibrated = true;
     state = Unlocked;
@@ -484,11 +488,11 @@ static int lock(int, char**)
     {
         state = Unknown;
         led.set_params(50, 100, 1);
-        const auto res = rotate_to(false, locked_position);
+        const auto res = rotate_to(false, locked_position.second);
         if (!res.first)
         {
             printf("ERROR: could not lock: %s\n", res.second.c_str());
-            rotate_to(true, unlocked_position);
+            rotate_to(true, unlocked_position.first);
             return 0;
         }
         // Back off
@@ -519,11 +523,11 @@ static int unlock(int, char**)
     {
         state = Unknown;
         led.set_params(10, 100, 1);
-        const auto res = rotate_to(true, unlocked_position);
+        const auto res = rotate_to(true, unlocked_position.first);
         if (!res.first)
         {
             printf("ERROR: could not unlock: %s\n", res.second.c_str());
-            rotate_to(false, locked_position);
+            rotate_to(false, locked_position.second);
             return 0;
         }
         // Back off

@@ -26,10 +26,6 @@ extern Motor* motor;
 extern Encoder encoder;
 extern Led led;
 extern int default_motor_power;
-extern int locked_position;
-extern bool locked_position_set;
-extern int unlocked_position;
-extern bool unlocked_position_set;
 
 /// Gets updated by encoder_task()
 extern std::atomic<int> encoder_position;
