@@ -390,9 +390,8 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
     if ((fwd && (position < start_pos)) ||
         (!fwd && (position > start_pos)))
     {
-        printf("Impossible: Forward %d, current position %d, requested %d\n",
-               fwd, start_pos, position);
-        return std::make_pair(false, "impossible move");
+        fwd = !fwd;
+        verbose_printf("reverse\n");
     }
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
     const int steps_needed = fabs(position - start_pos);
@@ -463,11 +462,21 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
 
 static int lock(int, char**)
 {
+    //static int last_locked_position = std::numeric_limits<int>::max();
+    
     if (!is_calibrated)
     {
         printf("Error: not calibrated\n");
         return 0;
     }
+    /*
+    if (state == Locked)
+    {
+        // Check if position has been changed manually
+        if (encoder_position.load() != last_locked_position)
+            state = Unknown;
+    }
+    */
     if (state != Locked)
     {
         state = Unknown;
@@ -492,6 +501,7 @@ static int lock(int, char**)
         state = Locked;
     }
     printf("OK: locked\n");
+    //last_locked_position = encoder_position.load();
     return 0;
 }
 
