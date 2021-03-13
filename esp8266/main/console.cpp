@@ -219,6 +219,9 @@ static int calibrate(int argc, char** argv)
     if (!ok)
         return 0;
 
+    // Use this position as zero
+    reset_encoder.store(true);
+    
     // Back off
     motor->brake();
     verbose_printf("Pause before back off\n");

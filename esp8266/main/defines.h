@@ -33,3 +33,6 @@ extern bool unlocked_position_set;
 
 /// Gets updated by encoder_task()
 extern std::atomic<int> encoder_position;
+
+/// Set this to make current position zero
+extern std::atomic<bool> reset_encoder;

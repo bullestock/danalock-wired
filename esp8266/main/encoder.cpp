@@ -99,12 +99,15 @@ void Encoder::loop()
         position = last_position;
 }
 
-std::atomic<int> encoder_position(0);
+std::atomic<int> encoder_position{0};
+std::atomic<bool> reset_encoder{false};
 
 extern "C" void encoder_task(void*)
 {
     while (1)
     {
+        if (reset_encoder.exchange(false))
+            encoder.resetPosition();
         encoder.loop();
         encoder_position = encoder.getPosition();
         led.update();
