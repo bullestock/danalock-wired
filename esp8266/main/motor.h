@@ -7,9 +7,12 @@ class Motor
 public:
     Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t STBYpin);      
 
+    /// Get maximum time to wait for engaging.
+    int get_max_engage_time_ms(int pwr) const;
+    
     // Drive in direction given by sign, at speed given by magnitude of the parameter (0-1000).
     void drive(int speed);  
-    
+
     // Stop motor by setting both input pins high
     void brake(); 
     
@@ -24,4 +27,5 @@ private:
     
     void fwd(int speed);
     void rev(int speed);
+    int max_engage_time_ms = 0;
 };

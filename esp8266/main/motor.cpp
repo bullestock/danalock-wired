@@ -2,6 +2,8 @@
 
 #include "driver/pwm.h"
 
+#include <cstdlib>
+
 Motor::Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t STBYpin)
     : In1(In1pin),
       In2(In2pin),
@@ -39,6 +41,17 @@ Motor::Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t
     ESP_ERROR_CHECK(pwm_init(1000, pwm_duty, 1, pwm_pin_num));
     ESP_ERROR_CHECK(pwm_set_phases(pwm_phase));
     ESP_ERROR_CHECK(pwm_start());
+}
+
+int Motor::get_max_engage_time_ms(int pwr) const
+{
+    int ms = 2500; // heuristically determined to be sufficient at power = 500
+
+    int abs_pwr = abs(pwr);
+    if (abs_pwr < 400)
+        ms = 3000;
+
+    return ms;
 }
 
 void Motor::drive(int speed)

@@ -103,12 +103,12 @@ static int set_power(int argc, char** argv)
         printf("Invalid power value\n");
         return 1;
     }
-    motor_power = pwr;
+    default_motor_power = pwr;
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
-    ESP_ERROR_CHECK(nvs_set_i32(my_handle, DEFAULT_POWER_KEY, motor_power));
+    ESP_ERROR_CHECK(nvs_set_i32(my_handle, DEFAULT_POWER_KEY, pwr));
     nvs_close(my_handle);    
-    printf("OK: power set to %d\n", motor_power);
+    printf("OK: power set to %d\n", pwr);
     return 0;
 }
 
@@ -147,7 +147,7 @@ static void backoff(int pwr)
 // true -> lock
 bool do_calibration(bool fwd)
 {
-    const auto pwr = fwd ? -CALIBRATE_POWER : CALIBRATE_POWER;
+    const auto pwr = fwd ? -MOTOR_CALIBRATE_POWER : MOTOR_CALIBRATE_POWER;
     verbose_printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_tick = xTaskGetTickCount();
     verbose_printf("- start %ld\n", (long) start_tick);
@@ -157,13 +157,14 @@ bool do_calibration(bool fwd)
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
+    const int max_engage_ticks = motor->get_max_engage_time_ms(pwr)/portTICK_PERIOD_MS;
     while (1)
     {
         const auto now = xTaskGetTickCount();
         const auto pos = encoder_position.load();
         if (!engaged)
         {
-            if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
+            if (now - start_tick > max_engage_ticks)
             {
                 printf("\nEngage timeout!\n");
                 verbose_printf("- now\n");
@@ -223,7 +224,7 @@ static int calibrate(int argc, char** argv)
     verbose_printf("Pause before back off\n");
     vTaskDelay(BACKOFF_TICKS);
     verbose_printf("Back off from %d\n", encoder_position.load());
-    motor->drive(CALIBRATE_POWER);
+    motor->drive(MOTOR_CALIBRATE_POWER);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
     verbose_printf("Backed off to %d\n", encoder_position.load());
@@ -241,7 +242,7 @@ static int calibrate(int argc, char** argv)
     verbose_printf("Pause before back off\n");
     vTaskDelay(BACKOFF_TICKS);
     verbose_printf("Back off from %d\n", encoder_position.load());
-    motor->drive(-CALIBRATE_POWER);
+    motor->drive(-MOTOR_CALIBRATE_POWER);
     vTaskDelay(BACKOFF_TICKS);
     motor->brake();
     verbose_printf("Backed off to %d\n", encoder_position.load());
@@ -301,7 +302,7 @@ int rotate(int argc, char** argv)
     const int MAX_TIME = 10000; // ms
     const auto start_pos = encoder_position.load();
     const auto start_tick = xTaskGetTickCount();
-    motor->drive(sign * motor_power);
+    motor->drive(sign * default_motor_power);
     const int slice = 10;
     int k = 0;
     while (1)
@@ -403,9 +404,9 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
 
     const auto start_tick = xTaskGetTickCount();
     bool engaged = false;
-    const int pwr = fwd ? motor_power : -motor_power;
+    const int pwr = fwd ? default_motor_power : -default_motor_power;
     motor->drive(pwr);
-    const int MAX_ENGAGE_TIME = 2000; // ms
+    const int max_engage_ticks = motor->get_max_engage_time_ms(pwr)/portTICK_PERIOD_MS;
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
     while (1)
@@ -414,7 +415,7 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
         const auto pos = encoder_position.load();
         if (!engaged)
         {
-            if (now - start_tick > MAX_ENGAGE_TIME/portTICK_PERIOD_MS)
+            if (now - start_tick > max_engage_ticks)
             {
                 backoff(-pwr);
                 printf("\nEngage timeout!\n");
@@ -480,8 +481,8 @@ static int lock(int, char**)
         }
         // Back off
         vTaskDelay(BACKOFF_TICKS);
-        verbose_printf("Back off (%d)\n", motor_power);
-        motor->drive(motor_power);
+        verbose_printf("Back off (%d)\n", default_motor_power);
+        motor->drive(default_motor_power);
         vTaskDelay(BACKOFF_TICKS);
         motor->brake();
         verbose_printf("Backed off\n");
@@ -514,8 +515,8 @@ static int unlock(int, char**)
         }
         // Back off
         vTaskDelay(BACKOFF_TICKS);
-        verbose_printf("Back off (%d)\n", motor_power);
-        motor->drive(-motor_power);
+        verbose_printf("Back off (%d)\n", default_motor_power);
+        motor->drive(-default_motor_power);
         vTaskDelay(BACKOFF_TICKS);
         motor->brake();
         verbose_printf("Backed off\n");
