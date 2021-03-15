@@ -43,9 +43,18 @@ std::pair<int, int> locked_position = std::make_pair(0, 0);
 std::pair<int, int> unlocked_position = std::make_pair(0, 0);
 bool is_calibrated = false;
 enum State {
+    // Initial state until calibration
     Unknown,
+    // The 'lock' command was successful
     Locked,
-    Unlocked
+    // The 'unlock' command was successful
+    Unlocked,
+    // The position was changed manually to be neither 'locked' nor 'unlocked'
+    ChangedManually,
+    // The position was changed manually to be 'locked'
+    LockedManually,
+    // The position was changed manually to be 'unlocked'
+    UnlockedManually
 };
 State state = Unknown;
 
@@ -469,21 +478,11 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
 
 static int lock(int, char**)
 {
-    //static int last_locked_position = std::numeric_limits<int>::max();
-    
     if (!is_calibrated)
     {
         printf("Error: not calibrated\n");
         return 0;
     }
-    /*
-    if (state == Locked)
-    {
-        // Check if position has been changed manually
-        if (encoder_position.load() != last_locked_position)
-            state = Unknown;
-    }
-    */
     if (state != Locked)
     {
         state = Unknown;
@@ -492,7 +491,8 @@ static int lock(int, char**)
         if (!res.first)
         {
             printf("ERROR: could not lock: %s\n", res.second.c_str());
-            rotate_to(true, unlocked_position.first);
+            if (rotate_to(true, unlocked_position.first).first)
+                state = Unlocked;
             return 0;
         }
         // Back off
@@ -508,7 +508,6 @@ static int lock(int, char**)
         state = Locked;
     }
     printf("OK: locked\n");
-    //last_locked_position = encoder_position.load();
     return 0;
 }
 
@@ -527,7 +526,8 @@ static int unlock(int, char**)
         if (!res.first)
         {
             printf("ERROR: could not unlock: %s\n", res.second.c_str());
-            rotate_to(false, locked_position.second);
+            if (rotate_to(false, locked_position.second).first)
+                state = Locked;
             return 0;
         }
         // Back off
@@ -562,6 +562,69 @@ static int set_verbosity(int argc, char** argv)
 static int version(int, char**)
 {
     printf("Danalock " VERSION "\n");
+    return 0;
+}
+
+static int status(int, char**)
+{
+    // Check if anybody has tinkered with the knob
+    const auto pos = encoder_position.load();
+    switch (state)
+    {
+    case Locked:
+    case LockedManually:
+        // If position is no longer inside the 'locked' interval, someone has fiddled
+        if (pos < locked_position.first || pos > locked_position.second)
+            state = ChangedManually;
+        break;
+
+    case Unlocked:
+    case UnlockedManually:
+        // If position is no longer inside the 'unlocked' interval, someone has fiddled
+        if (pos < unlocked_position.first || pos > unlocked_position.second)
+            state = ChangedManually;
+        break;
+
+    default:
+        break;
+    }
+
+    if (state == ChangedManually)
+    {
+        // Check if we are now inside either the 'locked' or 'unlocked' interval
+        if (pos >= locked_position.first && pos <= locked_position.second)
+            state = LockedManually;
+        if (pos >= unlocked_position.first && pos <= unlocked_position.second)
+            state = UnlockedManually;
+    }
+
+    const char* status = "?";
+    switch (state)
+    {
+    case Unknown:
+        status = "unknown";
+        break;
+    case Locked:
+        status = "locked";
+        break;
+    case Unlocked:
+        status = "unlocked";
+        break;
+    case LockedManually:
+        status = "lockedmanually";
+        break;
+    case UnlockedManually:
+        status = "unlockedmanually";
+        break;
+    case ChangedManually:
+        status = "changedmanually";
+        break;
+    default:
+        printf("Unhandled state: %d\n", (int) state);
+        assert(false);
+        break;
+    }
+    printf("OK: status %s\n", status);
     return 0;
 }
 
@@ -749,6 +812,15 @@ extern "C" void console_task(void*)
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&version_cmd));
+
+    const esp_console_cmd_t status_cmd = {
+        .command = "status",
+        .help = "Get status",
+        .hint = nullptr,
+        .func = &status,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&status_cmd));
 
     const char* prompt = "";
 
