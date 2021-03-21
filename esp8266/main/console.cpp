@@ -189,15 +189,13 @@ static int set_no_rotation_timeout(int argc, char** argv)
 
 static void backoff(int pwr)
 {
-    verbose_printf("backoff(%d): brake\n", pwr);
-    motor->brake();
-    verbose_printf("backoff(): wait\n");
-    vTaskDelay(BACKOFF_TICKS/portTICK_PERIOD_MS);
+    vTaskDelay(BACKOFF_MS/portTICK_PERIOD_MS);
     verbose_printf("backoff(): drive\n");
     motor->drive(pwr);
-    vTaskDelay(2*BACKOFF_TICKS/portTICK_PERIOD_MS);
+    vTaskDelay(BACKOFF_MS/portTICK_PERIOD_MS);
     verbose_printf("backoff(): brake\n");
     motor->brake();
+    vTaskDelay(BACKOFF_MS/portTICK_PERIOD_MS);
 }
 
 // true -> lock
@@ -205,22 +203,22 @@ bool do_calibration(bool fwd)
 {
     const auto pwr = fwd ? -MOTOR_CALIBRATE_POWER : MOTOR_CALIBRATE_POWER;
     verbose_printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
-    auto start_tick = xTaskGetTickCount();
-    verbose_printf("- start %ld\n", (long) start_tick);
+    auto start_ms = xTaskGetTickCount()*portTICK_PERIOD_MS;
+    verbose_printf("- start %ld\n", (long) start_ms);
     const auto start_pos = encoder_position.load();
     bool engaged = false;
     motor->drive(pwr);
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
-    const int max_engage_ticks = motor->get_max_engage_time_ms(pwr)/portTICK_PERIOD_MS;
+    const int max_engage_ms = motor->get_max_engage_time_ms(pwr);
     while (1)
     {
-        const auto now = xTaskGetTickCount();
+        const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
         const auto pos = encoder_position.load();
         if (!engaged)
         {
-            if (now - start_tick > max_engage_ticks)
+            if (now - start_ms > max_engage_ms)
             {
                 printf("\nEngage timeout!\n");
                 verbose_printf("- now\n");
@@ -280,15 +278,8 @@ static int calibrate(int argc, char** argv)
     locked_position.first = 0;
     
     // Back off
-    motor->brake();
-    verbose_printf("Pause before back off\n");
-    vTaskDelay(BACKOFF_TICKS);
-    verbose_printf("Back off from %d\n", encoder_position.load());
-    motor->drive(MOTOR_CALIBRATE_POWER);
-    vTaskDelay(BACKOFF_TICKS);
-    motor->brake();
+    backoff(MOTOR_CALIBRATE_POWER);
     verbose_printf("Backed off to %d\n", encoder_position.load());
-    vTaskDelay(BACKOFF_TICKS);
 
     locked_position.second = encoder_position.load();
     
@@ -300,12 +291,8 @@ static int calibrate(int argc, char** argv)
     unlocked_position.second = encoder_position.load();
 
     // Back off
-    verbose_printf("Pause before back off\n");
-    vTaskDelay(BACKOFF_TICKS);
     verbose_printf("Back off from %d\n", encoder_position.load());
-    motor->drive(-MOTOR_CALIBRATE_POWER);
-    vTaskDelay(BACKOFF_TICKS);
-    motor->brake();
+    backoff(-MOTOR_CALIBRATE_POWER);
     verbose_printf("Backed off to %d\n", encoder_position.load());
 
     unlocked_position.first = encoder_position.load();
@@ -477,23 +464,24 @@ rotate_result rotate_to(bool fwd, int position)
     }
     verbose_printf("rotate_to: steps_needed %d\n", steps_needed);
 
-    const auto start_tick = xTaskGetTickCount();
+    const auto start_ms = xTaskGetTickCount()*portTICK_PERIOD_MS;
     bool engaged = false;
     const int pwr = fwd ? default_motor_power : -default_motor_power;
     motor->drive(pwr);
-    const int max_engage_ticks = motor->get_max_engage_time_ms(pwr)/portTICK_PERIOD_MS;
+    const int max_engage_ms = motor->get_max_engage_time_ms(pwr);
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
     while (1)
     {
-        const auto now = xTaskGetTickCount();
+        const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
         const auto pos = encoder_position.load();
         if (!engaged)
         {
-            if (now - start_tick > max_engage_ticks)
+            if (now - start_ms > max_engage_ms)
             {
                 backoff(-pwr);
-                printf("\nEngage timeout!\n");
+                printf("Engage timeout: start %ld now %ld\n",
+                       (long) start_ms, (long) now);
                 led.set_params(10, 100, 40);
                 res.error_message = "engage timeout";
                 return res;
@@ -571,11 +559,7 @@ static int lock(int, char**)
         if (!res.reversed)
         {
             // Back off
-            vTaskDelay(BACKOFF_TICKS/2);
-            verbose_printf("Back off (%d)\n", default_motor_power);
-            motor->drive(default_motor_power);
-            vTaskDelay(BACKOFF_TICKS);
-            motor->brake();
+            backoff(default_motor_power);
             verbose_printf("Backed off to %d\n", encoder_position.load());
         }
         led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
@@ -615,11 +599,7 @@ static int unlock(int, char**)
         if (!res.reversed)
         {
             // Back off
-            vTaskDelay(BACKOFF_TICKS/2);
-            verbose_printf("Back off (%d)\n", default_motor_power);
-            motor->drive(-default_motor_power);
-            vTaskDelay(BACKOFF_TICKS);
-            motor->brake();
+            backoff(-default_motor_power);
             verbose_printf("Backed off\n");
         }
         led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
