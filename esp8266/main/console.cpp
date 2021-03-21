@@ -555,11 +555,11 @@ static int lock(int, char**)
     {
         state = Unknown;
         led.set_params(50, 100, 1);
-        const auto res = rotate_to(false, locked_position.second);
+        const auto res = rotate_to(false, locked_position.second - 1);
         if (!res.ok)
         {
             backoff(default_motor_power);
-            if (rotate_to(true, unlocked_position.first).ok)
+            if (rotate_to(true, unlocked_position.first + 1).ok)
             {
                 printf("ERROR: could not lock (still unlocked): %s\n", res.error_message.c_str());
                 state = Unlocked;
@@ -599,11 +599,11 @@ static int unlock(int, char**)
     {
         state = Unknown;
         led.set_params(10, 100, 1);
-        const auto res = rotate_to(true, unlocked_position.first);
+        const auto res = rotate_to(true, unlocked_position.first + 1);
         if (!res.ok)
         {
             backoff(default_motor_power);
-            if (rotate_to(false, locked_position.second).ok)
+            if (rotate_to(false, locked_position.second - 1).ok)
             {
                 printf("ERROR: could not unlock (still locked): %s\n", res.error_message.c_str());
                 state = Locked;
