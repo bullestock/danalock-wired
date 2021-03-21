@@ -58,6 +58,53 @@ enum State {
 };
 State state = Unknown;
 
+static void update_state()
+{
+    // Check if anybody has tinkered with the knob
+    const auto pos = encoder_position.load();
+    verbose_printf("update_state: pos %d\n", pos);
+    switch (state)
+    {
+    case Locked:
+    case LockedManually:
+        // If position is no longer inside the 'locked' interval, someone has fiddled
+        if (pos < locked_position.first || pos > locked_position.second)
+        {
+            verbose_printf("update_state: outside locked_position\n");
+            state = ChangedManually;
+        }
+        break;
+
+    case Unlocked:
+    case UnlockedManually:
+        // If position is no longer inside the 'unlocked' interval, someone has fiddled
+        if (pos < unlocked_position.first || pos > unlocked_position.second)
+        {
+            verbose_printf("update_state: outside unlocked_position\n");
+            state = ChangedManually;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    if (state == ChangedManually)
+    {
+        // Check if we are now inside either the 'locked' or 'unlocked' interval
+        if (pos >= locked_position.first && pos <= locked_position.second)
+        {
+            verbose_printf("update_state: inside locked_position\n");
+            state = LockedManually;
+        }
+        if (pos >= unlocked_position.first && pos <= unlocked_position.second)
+        {
+            verbose_printf("update_state: inside unlocked_position\n");
+            state = UnlockedManually;
+        }
+    }
+}
+
 struct
 {
     struct arg_int* power;
@@ -400,22 +447,35 @@ int reverse(int argc, char** argv)
     return do_drive(-1, pwr, ms);
 }
 
-std::pair<bool, std::string> rotate_to(bool fwd, int position)
+struct rotate_result
 {
+    bool ok = false;
+    bool reversed = false;
+    std::string error_message;
+};
+
+rotate_result rotate_to(bool fwd, int position)
+{
+    rotate_result res;
+    
     const auto start_pos = encoder_position.load();
+    verbose_printf("rotate_to: start_pos %d\n", start_pos);
     if ((fwd && (position < start_pos)) ||
         (!fwd && (position > start_pos)))
     {
         fwd = !fwd;
         verbose_printf("reverse\n");
+        res.reversed = true;
     }
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
     const int steps_needed = fabs(position - start_pos);
     if (steps_needed > MAX_TOTAL_PULSES)
     {
         printf("Impossible: Distance %d\n", steps_needed);
-        return std::make_pair(false, "move too large");
+        res.error_message = "move too large";
+        return res;
     }
+    verbose_printf("rotate_to: steps_needed %d\n", steps_needed);
 
     const auto start_tick = xTaskGetTickCount();
     bool engaged = false;
@@ -435,7 +495,8 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
                 backoff(-pwr);
                 printf("\nEngage timeout!\n");
                 led.set_params(10, 100, 40);
-                return std::make_pair(false, "engage timeout");
+                res.error_message = "engage timeout";
+                return res;
             }
             if (pos != start_pos)
             {
@@ -457,7 +518,8 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
                 verbose_wait();
                 backoff(-pwr);
                 verbose_printf("last change %ld\n", (long) last_position_change);
-                return std::make_pair(false, "hit limit");
+                res.error_message = "hit limit";
+                return res;
             }
         }
         last_encoder_pos = pos;
@@ -466,14 +528,19 @@ std::pair<bool, std::string> rotate_to(bool fwd, int position)
         {
             backoff(-pwr);
             printf("\nTimeout!\n");
-            return std::make_pair(false, "limit timeout");
+            res.error_message = "limit timeout";
+            return res;
         }
         if (steps_total >= steps_needed)
+        {
+            verbose_printf("rotate_to: steps_total %d\n", steps_needed);
             break;
+        }
     }
 
     motor->brake();
-    return std::make_pair(true, "");
+    res.ok = true;
+    return res;
 }
 
 static int lock(int, char**)
@@ -483,25 +550,34 @@ static int lock(int, char**)
         printf("Error: not calibrated\n");
         return 0;
     }
+    update_state();
     if (state != Locked)
     {
         state = Unknown;
         led.set_params(50, 100, 1);
         const auto res = rotate_to(false, locked_position.second);
-        if (!res.first)
+        if (!res.ok)
         {
-            printf("ERROR: could not lock: %s\n", res.second.c_str());
-            if (rotate_to(true, unlocked_position.first).first)
+            backoff(default_motor_power);
+            if (rotate_to(true, unlocked_position.first).ok)
+            {
+                printf("ERROR: could not lock (still unlocked): %s\n", res.error_message.c_str());
                 state = Unlocked;
+            }
+            else
+                printf("ERROR: could not lock (or unlock): %s\n", res.error_message.c_str());
             return 0;
         }
-        // Back off
-        vTaskDelay(BACKOFF_TICKS);
-        verbose_printf("Back off (%d)\n", default_motor_power);
-        motor->drive(default_motor_power);
-        vTaskDelay(BACKOFF_TICKS);
-        motor->brake();
-        verbose_printf("Backed off\n");
+        if (!res.reversed)
+        {
+            // Back off
+            vTaskDelay(BACKOFF_TICKS/2);
+            verbose_printf("Back off (%d)\n", default_motor_power);
+            motor->drive(default_motor_power);
+            vTaskDelay(BACKOFF_TICKS);
+            motor->brake();
+            verbose_printf("Backed off to %d\n", encoder_position.load());
+        }
         led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                        LED_DEFAULT_DUTY_CYCLE_DEN,
                        LED_DEFAULT_PERIOD);
@@ -518,25 +594,34 @@ static int unlock(int, char**)
         printf("Error: not calibrated\n");
         return 0;
     }
+    update_state();
     if (state != Unlocked)
     {
         state = Unknown;
         led.set_params(10, 100, 1);
         const auto res = rotate_to(true, unlocked_position.first);
-        if (!res.first)
+        if (!res.ok)
         {
-            printf("ERROR: could not unlock: %s\n", res.second.c_str());
-            if (rotate_to(false, locked_position.second).first)
+            backoff(default_motor_power);
+            if (rotate_to(false, locked_position.second).ok)
+            {
+                printf("ERROR: could not unlock (still locked): %s\n", res.error_message.c_str());
                 state = Locked;
+            }
+            else
+                printf("ERROR: could not unlock (or lock): %s\n", res.error_message.c_str());
             return 0;
         }
-        // Back off
-        vTaskDelay(BACKOFF_TICKS);
-        verbose_printf("Back off (%d)\n", default_motor_power);
-        motor->drive(-default_motor_power);
-        vTaskDelay(BACKOFF_TICKS);
-        motor->brake();
-        verbose_printf("Backed off\n");
+        if (!res.reversed)
+        {
+            // Back off
+            vTaskDelay(BACKOFF_TICKS/2);
+            verbose_printf("Back off (%d)\n", default_motor_power);
+            motor->drive(-default_motor_power);
+            vTaskDelay(BACKOFF_TICKS);
+            motor->brake();
+            verbose_printf("Backed off\n");
+        }
         led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                        LED_DEFAULT_DUTY_CYCLE_DEN,
                        LED_DEFAULT_PERIOD);
@@ -567,37 +652,8 @@ static int version(int, char**)
 
 static int status(int, char**)
 {
-    // Check if anybody has tinkered with the knob
-    const auto pos = encoder_position.load();
-    switch (state)
-    {
-    case Locked:
-    case LockedManually:
-        // If position is no longer inside the 'locked' interval, someone has fiddled
-        if (pos < locked_position.first || pos > locked_position.second)
-            state = ChangedManually;
-        break;
-
-    case Unlocked:
-    case UnlockedManually:
-        // If position is no longer inside the 'unlocked' interval, someone has fiddled
-        if (pos < unlocked_position.first || pos > unlocked_position.second)
-            state = ChangedManually;
-        break;
-
-    default:
-        break;
-    }
-
-    if (state == ChangedManually)
-    {
-        // Check if we are now inside either the 'locked' or 'unlocked' interval
-        if (pos >= locked_position.first && pos <= locked_position.second)
-            state = LockedManually;
-        if (pos >= unlocked_position.first && pos <= unlocked_position.second)
-            state = UnlockedManually;
-    }
-
+    verbose_printf("status: initial state %d\n", (int) state);
+    update_state();
     const char* status = "?";
     switch (state)
     {
@@ -635,6 +691,7 @@ static int read_encoder(int, char**)
         vTaskDelay(500/portTICK_PERIOD_MS);
         printf("Encoder %d\n", encoder_position.load());
     }
+    update_state();
     printf("done\n");
     return 0;
 }
