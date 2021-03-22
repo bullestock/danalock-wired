@@ -10,6 +10,9 @@ public:
     /// Get maximum time to wait for engaging.
     int get_max_engage_time_ms(int pwr) const;
     
+    /// Get maximum time to wait for movement.
+    int get_rotation_timeout_ms(int pwr) const;
+    
     // Drive in direction given by sign, at speed given by magnitude of the parameter (0-1000).
     void drive(int speed);  
 

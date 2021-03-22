@@ -25,7 +25,7 @@ void verbose_printf(const char* format, ...)
 {
     if (verbosity == 0)
         return;
-    printf("%ld ", (long) xTaskGetTickCount());
+    printf("%ld ", (long) (xTaskGetTickCount()*portTICK_PERIOD_MS));
     va_list args;
     va_start(args, format);
     vprintf(format, args);
@@ -113,12 +113,6 @@ struct
 
 struct
 {
-    struct arg_int* no_rotation_timeout;
-    struct arg_end* end;
-} set_no_rotation_timeout_args;
-
-struct
-{
     struct arg_int* degrees;
     struct arg_end* end;
 } rotate_args;
@@ -143,8 +137,6 @@ struct
     struct arg_end* end;
 } set_verbosity_args;
 
-int no_rotation_timeout = 275;
-
 static int set_power(int argc, char** argv)
 {
     int nerrors = arg_parse(argc, argv, (void**) &set_power_args);
@@ -165,25 +157,6 @@ static int set_power(int argc, char** argv)
     ESP_ERROR_CHECK(nvs_set_i32(my_handle, DEFAULT_POWER_KEY, pwr));
     nvs_close(my_handle);    
     printf("OK: power set to %d\n", pwr);
-    return 0;
-}
-
-static int set_no_rotation_timeout(int argc, char** argv)
-{
-    int nerrors = arg_parse(argc, argv, (void**) &set_no_rotation_timeout_args);
-    if (nerrors != 0)
-    {
-        arg_print_errors(stderr, set_no_rotation_timeout_args.end, argv[0]);
-        return 1;
-    }
-    const auto to = set_no_rotation_timeout_args.no_rotation_timeout->ival[0];
-    if (to < 0 || to > 1000)
-    {
-        printf("Invalid no_rotation_timeout value\n");
-        return 1;
-    }
-    no_rotation_timeout = to;
-    printf("OK: no rotation timeout set to %d\n", no_rotation_timeout);
     return 0;
 }
 
@@ -212,6 +185,7 @@ bool do_calibration(bool fwd)
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
     const int max_engage_ms = motor->get_max_engage_time_ms(pwr);
+    const int no_rotation_timeout = motor->get_rotation_timeout_ms(pwr);
     while (1)
     {
         const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
@@ -242,7 +216,7 @@ bool do_calibration(bool fwd)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                verbose_printf("\nHit limit\n");
+                verbose_printf("Hit limit\n");
                 verbose_wait();
                 backoff(-pwr);
                 verbose_printf("last change %ld\n", (long) last_position_change);
@@ -469,6 +443,7 @@ rotate_result rotate_to(bool fwd, int position)
     const int pwr = fwd ? default_motor_power : -default_motor_power;
     motor->drive(pwr);
     const int max_engage_ms = motor->get_max_engage_time_ms(pwr);
+    const int no_rotation_timeout = motor->get_rotation_timeout_ms(pwr);
     int last_encoder_pos = std::numeric_limits<int>::min();
     int last_position_change = 0;
     while (1)
@@ -502,7 +477,7 @@ rotate_result rotate_to(bool fwd, int position)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                verbose_printf("\nHit limit\n");
+                verbose_printf("Hit limit\n");
                 verbose_wait();
                 backoff(-pwr);
                 verbose_printf("last change %ld\n", (long) last_position_change);
@@ -620,7 +595,7 @@ static int set_verbosity(int argc, char** argv)
         return 1;
     }
     verbosity = set_verbosity_args.verbosity->ival[0];
-    printf("Verbosity is %d\n", verbosity);
+    printf("OK: Verbosity is %d\n", verbosity);
     return 0;
 }
 
@@ -738,17 +713,6 @@ extern "C" void console_task(void*)
         .argtable = &set_power_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&set_power_cmd));
-
-    set_no_rotation_timeout_args.no_rotation_timeout = arg_int1(NULL, NULL, "<ms>", "No rotation timeout");
-    set_no_rotation_timeout_args.end = arg_end(2);
-    const esp_console_cmd_t set_no_rotation_timeout_cmd = {
-        .command = "set_no_rotation_timeout",
-        .help = "Set no rotation timeout",
-        .hint = nullptr,
-        .func = &set_no_rotation_timeout,
-        .argtable = &set_no_rotation_timeout_args
-    };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&set_no_rotation_timeout_cmd));
 
     rotate_args.degrees = arg_int1(NULL, NULL, "<degrees>", "Degrees");
     rotate_args.end = arg_end(2);

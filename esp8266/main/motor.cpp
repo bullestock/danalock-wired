@@ -54,6 +54,17 @@ int Motor::get_max_engage_time_ms(int pwr) const
     return ms;
 }
 
+int Motor::get_rotation_timeout_ms(int pwr) const
+{
+    int ms = 275;
+
+    int abs_pwr = abs(pwr);
+    if (abs_pwr < 400)
+        ms = 400;
+
+    return ms;
+}
+
 void Motor::drive(int speed)
 {
     ESP_ERROR_CHECK(gpio_set_level(Standby, 1));
