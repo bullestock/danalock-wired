@@ -28,7 +28,8 @@ Encoder encoder(ENC_A, ENC_B);
 Led led(LED);
 Motor* motor = nullptr;
 
-int default_motor_power = 300;
+int default_motor_power = MOTOR_DEFAULT_POWER;
+int backoff_pulses = DEFAULT_BACKOFF_PULSES;
 
 extern "C" void app_main()
 {
@@ -46,12 +47,25 @@ extern "C" void app_main()
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
     default_motor_power = MOTOR_DEFAULT_POWER;
+    backoff_pulses = DEFAULT_BACKOFF_PULSES;
     int32_t val = 0;
     err = nvs_get_i32(my_handle, DEFAULT_POWER_KEY, &val);
     switch (err)
     {
     case ESP_OK:
         default_motor_power = val;
+        break;
+    case ESP_ERR_NVS_NOT_FOUND:
+        break;
+    default:
+        printf("%s: NVS error %d\n", DEFAULT_POWER_KEY, err);
+        break;
+    }
+    err = nvs_get_i32(my_handle, BACKOFF_PULSES_KEY, &val);
+    switch (err)
+    {
+    case ESP_OK:
+        backoff_pulses = val;
         break;
     case ESP_ERR_NVS_NOT_FOUND:
         break;
@@ -66,7 +80,8 @@ extern "C" void app_main()
     // Not calibrated yet
     led.set_params(50, 100, 1000);
 
-    printf("Danalock " VERSION " ready, default power: %d\n", default_motor_power);
+    printf("Danalock " VERSION " ready, default power: %d, backoff: %d\n",
+           default_motor_power, backoff_pulses);
     
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
     xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);

@@ -39,8 +39,8 @@ void verbose_wait()
     vTaskDelay(1000);
 }
 
-std::pair<int, int> locked_position = std::make_pair(0, 0);
-std::pair<int, int> unlocked_position = std::make_pair(0, 0);
+int locked_position = 0;
+int unlocked_position = 0;
 bool is_calibrated = false;
 enum State {
     // Initial state until calibration
@@ -68,7 +68,7 @@ static void update_state()
     case Locked:
     case LockedManually:
         // If position is no longer inside the 'locked' interval, someone has fiddled
-        if (pos < locked_position.first || pos > locked_position.second)
+        if (pos < locked_position || pos > locked_position + backoff_pulses)
         {
             verbose_printf("update_state: outside locked_position\n");
             state = ChangedManually;
@@ -78,7 +78,7 @@ static void update_state()
     case Unlocked:
     case UnlockedManually:
         // If position is no longer inside the 'unlocked' interval, someone has fiddled
-        if (pos < unlocked_position.first || pos > unlocked_position.second)
+        if (pos < unlocked_position - backoff_pulses || pos > unlocked_position)
         {
             verbose_printf("update_state: outside unlocked_position\n");
             state = ChangedManually;
@@ -92,12 +92,12 @@ static void update_state()
     if (state == ChangedManually)
     {
         // Check if we are now inside either the 'locked' or 'unlocked' interval
-        if (pos >= locked_position.first && pos <= locked_position.second)
+        if (pos >= locked_position && pos <= locked_position + backoff_pulses)
         {
             verbose_printf("update_state: inside locked_position\n");
             state = LockedManually;
         }
-        if (pos >= unlocked_position.first && pos <= unlocked_position.second)
+        if (pos >= unlocked_position - backoff_pulses && pos <= unlocked_position)
         {
             verbose_printf("update_state: inside unlocked_position\n");
             state = UnlockedManually;
@@ -249,35 +249,22 @@ static int calibrate(int argc, char** argv)
 
     // Use this position as zero
     reset_encoder.store(true);
-    locked_position.first = 0;
-    
-    // Back off
-    backoff(MOTOR_CALIBRATE_POWER);
-    verbose_printf("Backed off to %d\n", encoder_position.load());
-
-    locked_position.second = encoder_position.load();
+    locked_position = 0;
     
     // Now unlock
     ok = do_calibration(false);
     motor->brake();
     if (!ok)
         return 0;
-    unlocked_position.second = encoder_position.load();
-
-    // Back off
-    verbose_printf("Back off from %d\n", encoder_position.load());
-    backoff(-MOTOR_CALIBRATE_POWER);
-    verbose_printf("Backed off to %d\n", encoder_position.load());
-
-    unlocked_position.first = encoder_position.load();
+    unlocked_position = encoder_position.load();
     
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
 
     printf("OK: locked %d-%d Unlocked %d-%d\n",
-           locked_position.first, locked_position.second,
-           unlocked_position.first, unlocked_position.second);
+           locked_position, locked_position + backoff_pulses,
+           unlocked_position - backoff_pulses, unlocked_position);
 
     is_calibrated = true;
     state = Unlocked;
@@ -518,11 +505,11 @@ static int lock(int, char**)
     {
         state = Unknown;
         led.set_params(50, 100, 1);
-        const auto res = rotate_to(false, locked_position.second - 1);
+        const auto res = rotate_to(false, locked_position + backoff_pulses - 1);
         if (!res.ok)
         {
             backoff(default_motor_power);
-            if (rotate_to(true, unlocked_position.first + 1).ok)
+            if (rotate_to(true, unlocked_position - backoff_pulses + 1).ok)
             {
                 printf("ERROR: could not lock (still unlocked): %s\n", res.error_message.c_str());
                 state = Unlocked;
@@ -558,11 +545,11 @@ static int unlock(int, char**)
     {
         state = Unknown;
         led.set_params(10, 100, 1);
-        const auto res = rotate_to(true, unlocked_position.first + 1);
+        const auto res = rotate_to(true, unlocked_position - backoff_pulses + 1);
         if (!res.ok)
         {
             backoff(default_motor_power);
-            if (rotate_to(false, locked_position.second - 1).ok)
+            if (rotate_to(false, locked_position + backoff_pulses - 1).ok)
             {
                 printf("ERROR: could not unlock (still locked): %s\n", res.error_message.c_str());
                 state = Locked;
