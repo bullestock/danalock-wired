@@ -10,6 +10,9 @@ public:
     /// Get maximum time to wait for engaging.
     int get_max_engage_time_ms(int pwr) const;
     
+    /// Get time to wait for backoff.
+    static int get_backoff_time_ms(int pwr);
+    
     /// Get maximum time to wait for movement.
     int get_rotation_timeout_ms(int pwr) const;
     

@@ -8,7 +8,7 @@
 
 constexpr const int LED_DEFAULT_PERIOD = 10;
 constexpr const int LED_DEFAULT_DUTY_CYCLE_NUM = 1;
-constexpr const int LED_DEFAULT_DUTY_CYCLE_DEN = 1000;
+constexpr const int LED_DEFAULT_DUTY_CYCLE_DEN = 100;
 
 /// Motor power for automatic calibration - reduced to avoid mechanical damage
 constexpr const int MOTOR_CALIBRATE_POWER = 250;

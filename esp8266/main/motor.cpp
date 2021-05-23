@@ -1,4 +1,5 @@
 #include "motor.h"
+#include "defines.h"
 
 #include "driver/pwm.h"
 
@@ -50,6 +51,17 @@ int Motor::get_max_engage_time_ms(int pwr) const
     int abs_pwr = abs(pwr);
     if (abs_pwr < 400)
         ms = 3000;
+
+    return ms;
+}
+
+int Motor::get_backoff_time_ms(int pwr)
+{
+    int ms = BACKOFF_MS; // heuristically determined to be suitable at power = 300
+
+    int abs_pwr = abs(pwr);
+    if (abs_pwr > 400)
+        ms = BACKOFF_MS/2;
 
     return ms;
 }

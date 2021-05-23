@@ -162,13 +162,13 @@ static int set_power(int argc, char** argv)
 
 static void backoff(int pwr)
 {
-    vTaskDelay(BACKOFF_MS/portTICK_PERIOD_MS);
+    vTaskDelay(Motor::get_backoff_time_ms(pwr)/portTICK_PERIOD_MS);
     verbose_printf("backoff(): drive\n");
     motor->drive(pwr);
-    vTaskDelay(BACKOFF_MS/portTICK_PERIOD_MS);
+    vTaskDelay(Motor::get_backoff_time_ms(pwr)/portTICK_PERIOD_MS);
     verbose_printf("backoff(): brake\n");
     motor->brake();
-    vTaskDelay(BACKOFF_MS/portTICK_PERIOD_MS);
+    vTaskDelay(Motor::get_backoff_time_ms(pwr)/portTICK_PERIOD_MS);
 }
 
 // true -> lock
