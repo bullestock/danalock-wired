@@ -15,17 +15,12 @@ Encoder::Encoder(gpio_num_t _pin1, gpio_num_t _pin2, int _lower_bound, int _uppe
     // Configure GPIO pins
     
     gpio_config_t io_conf;
-    // disable interrupt
     io_conf.intr_type = GPIO_INTR_DISABLE;
-    // set as output mode
     io_conf.mode = GPIO_MODE_INPUT;
     // bit mask of the pins that you want to set
     io_conf.pin_bit_mask = (1ULL << _pin1) | (1ULL << _pin2);
-    // disable pull-down mode
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    // enable pull-up mode
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    // configure GPIO with the given settings
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
     loop();

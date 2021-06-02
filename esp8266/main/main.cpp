@@ -13,14 +13,6 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-const auto AIN1 = (gpio_num_t) 5; // D1
-const auto AIN2 = (gpio_num_t) 4; // D2
-const auto PWMA = (gpio_num_t) 0; // D3
-const auto STBY = (gpio_num_t) 2; // D4
-const auto ENC_A = (gpio_num_t) 13; // D7
-const auto ENC_B = (gpio_num_t) 12; // D6 - on Wemos D1 mini, D8 has a physical pulldown
-const auto LED = (gpio_num_t) 14; // D5
-
 extern "C" void console_task(void*);
 extern "C" void encoder_task(void*);
 

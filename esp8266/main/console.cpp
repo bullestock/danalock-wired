@@ -113,6 +113,12 @@ struct
 
 struct
 {
+    struct arg_int* backoff;
+    struct arg_end* end;
+} set_backoff_args;
+
+struct
+{
     struct arg_int* degrees;
     struct arg_end* end;
 } rotate_args;
@@ -155,8 +161,31 @@ static int set_power(int argc, char** argv)
     nvs_handle my_handle;
     ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
     ESP_ERROR_CHECK(nvs_set_i32(my_handle, DEFAULT_POWER_KEY, pwr));
-    nvs_close(my_handle);    
+    nvs_close(my_handle);
     printf("OK: power set to %d\n", pwr);
+    return 0;
+}
+
+static int set_backoff(int argc, char** argv)
+{
+    int nerrors = arg_parse(argc, argv, (void**) &set_backoff_args);
+    if (nerrors != 0)
+    {
+        arg_print_errors(stderr, set_backoff_args.end, argv[0]);
+        return 1;
+    }
+    const auto bp = set_backoff_args.backoff->ival[0];
+    if (bp < 0 || bp > 70)
+    {
+        printf("Invalid backoff value\n");
+        return 1;
+    }
+    backoff_pulses = bp;
+    nvs_handle my_handle;
+    ESP_ERROR_CHECK(nvs_open("storage", NVS_READWRITE, &my_handle));
+    ESP_ERROR_CHECK(nvs_set_i32(my_handle, BACKOFF_PULSES_KEY, bp));
+    nvs_close(my_handle);    
+    printf("OK: backoff set to %d\n", bp);
     return 0;
 }
 
@@ -638,6 +667,20 @@ static int read_encoder(int, char**)
     return 0;
 }
 
+static int read_switches(int, char**)
+{
+    for (int n = 0; n < 100; ++n)
+    {
+        vTaskDelay(500/portTICK_PERIOD_MS);
+        printf("Switches: Door %d Handle %d\n",
+               gpio_get_level(DOOR_SW),
+               gpio_get_level(HANDLE_SW));
+    }
+    update_state();
+    printf("done\n");
+    return 0;
+}
+
 void initialize_console()
 {
     // Disable buffering on stdin
@@ -685,6 +728,17 @@ void initialize_console()
 
 extern "C" void console_task(void*)
 {
+    // Configure switch GPIO pins
+    
+    gpio_config_t io_conf;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    io_conf.mode = GPIO_MODE_INPUT;
+    // bit mask of the pins that you want to set
+    io_conf.pin_bit_mask = (1ULL << DOOR_SW) | (1ULL << HANDLE_SW);
+    io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    ESP_ERROR_CHECK(gpio_config(&io_conf));
+
     initialize_console();
 
     // Register commands
@@ -700,6 +754,17 @@ extern "C" void console_task(void*)
         .argtable = &set_power_args
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&set_power_cmd));
+
+    set_backoff_args.backoff = arg_int1(NULL, NULL, "<backoff>", "Backoff pulses (0-70)");
+    set_backoff_args.end = arg_end(2);
+    const esp_console_cmd_t set_backoff_cmd = {
+        .command = "set_backoff",
+        .help = "Set backoff pulses",
+        .hint = nullptr,
+        .func = &set_backoff,
+        .argtable = &set_backoff_args
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&set_backoff_cmd));
 
     rotate_args.degrees = arg_int1(NULL, NULL, "<degrees>", "Degrees");
     rotate_args.end = arg_end(2);
@@ -744,6 +809,15 @@ extern "C" void console_task(void*)
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&read_encoder_cmd));
+
+    const esp_console_cmd_t read_switches_cmd = {
+        .command = "read_switches",
+        .help = "Read switches",
+        .hint = nullptr,
+        .func = &read_switches,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&read_switches_cmd));
 
     const esp_console_cmd_t calibrate_cmd = {
         .command = "calibrate",
