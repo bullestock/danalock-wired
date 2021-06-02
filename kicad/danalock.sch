@@ -359,8 +359,6 @@ Text GLabel 2600 2825 0    50   Input ~ 0
 ENC_B
 Wire Wire Line
 	2800 2925 2600 2925
-NoConn ~ 2800 2625
-NoConn ~ 2800 3025
 Wire Wire Line
 	2600 2825 2800 2825
 Text GLabel 2600 2725 0    50   Input ~ 0
@@ -410,4 +408,55 @@ Text GLabel 2325 6325 0    50   Input ~ 0
 LED
 Wire Wire Line
 	2325 6325 2500 6325
+Text GLabel 2600 2625 0    50   Input ~ 0
+DOOR_SW
+Wire Wire Line
+	2600 2625 2800 2625
+Text GLabel 2600 3025 0    50   Input ~ 0
+HANDLE_SW
+Wire Wire Line
+	2600 3025 2800 3025
+$Comp
+L Connector_Generic:Conn_02x02_Top_Bottom J1
+U 1 1 60B6B971
+P 4525 6400
+F 0 "J1" H 4575 6617 50  0000 C CNN
+F 1 "Conn_02x02_Top_Bottom" H 4575 6526 50  0000 C CNN
+F 2 "" H 4525 6400 50  0001 C CNN
+F 3 "~" H 4525 6400 50  0001 C CNN
+	1    4525 6400
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:+3.3V #PWR0102
+U 1 1 60B6C2C0
+P 4225 6025
+F 0 "#PWR0102" H 4225 5875 50  0001 C CNN
+F 1 "+3.3V" H 4240 6198 50  0000 C CNN
+F 2 "" H 4225 6025 50  0001 C CNN
+F 3 "" H 4225 6025 50  0001 C CNN
+	1    4225 6025
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4225 6025 4225 6100
+Wire Wire Line
+	4225 6400 4325 6400
+Wire Wire Line
+	4825 6400 4900 6400
+Wire Wire Line
+	4900 6400 4900 6100
+Wire Wire Line
+	4900 6100 4225 6100
+Connection ~ 4225 6100
+Wire Wire Line
+	4225 6100 4225 6400
+Text GLabel 4050 6500 0    50   Input ~ 0
+DOOR_SW
+Text GLabel 5100 6500 2    50   Input ~ 0
+HANDLE_SW
+Wire Wire Line
+	5100 6500 4825 6500
+Wire Wire Line
+	4325 6500 4050 6500
 $EndSCHEMATC
