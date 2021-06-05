@@ -673,8 +673,13 @@ static int read_switches(int, char**)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
         printf("Switches: Door %d Handle %d\n",
-               gpio_get_level(DOOR_SW),
-               gpio_get_level(HANDLE_SW));
+               (int) gpio_get_level(DOOR_SW),
+               (int) gpio_get_level(HANDLE_SW));
+        if ((n % 10) < 5)
+            led.set_params(100, 100, 100);
+        else
+            led.set_params(1, 100, 100);
+        
     }
     update_state();
     printf("done\n");
