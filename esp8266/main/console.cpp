@@ -25,7 +25,7 @@ void verbose_printf(const char* format, ...)
 {
     if (verbosity == 0)
         return;
-    printf("%ld ", (long) (xTaskGetTickCount()*portTICK_PERIOD_MS));
+    printf("DEBUG: %ld ", (long) (xTaskGetTickCount()*portTICK_PERIOD_MS));
     va_list args;
     va_start(args, format);
     vprintf(format, args);
@@ -154,7 +154,7 @@ static int set_power(int argc, char** argv)
     const auto pwr = set_power_args.power->ival[0];
     if (pwr < 0 || pwr > 1000)
     {
-        printf("Invalid power value\n");
+        printf("ERROR: Invalid power value\n");
         return 1;
     }
     default_motor_power = pwr;
@@ -177,7 +177,7 @@ static int set_backoff(int argc, char** argv)
     const auto bp = set_backoff_args.backoff->ival[0];
     if (bp < 0 || bp > 70)
     {
-        printf("Invalid backoff value\n");
+        printf("ERROR: Invalid backoff value\n");
         return 1;
     }
     backoff_pulses = bp;
@@ -223,7 +223,7 @@ bool do_calibration(bool fwd)
         {
             if (now - start_ms > max_engage_ms)
             {
-                printf("\nEngage timeout!\n");
+                printf("ERROR: Engage timeout!\n");
                 verbose_printf("- now\n");
                 backoff(-pwr);
                 led.set_params(10, 100, 40);
@@ -256,7 +256,7 @@ bool do_calibration(bool fwd)
         if (fabs(pos - start_pos) > MAX_TOTAL_PULSES)
         {
             backoff(-pwr);
-            printf("\nTimeout!\n");
+            printf("ERROR: Timeout!\n");
             led.set_params(10, 100, 10);
             return false;
         }
@@ -322,14 +322,14 @@ int rotate(int argc, char** argv)
 {
     if (argc < 1)
     {
-        printf("Missing argument\n");
+        printf("ERROR: Missing argument\n");
         return 1;
     }
     // arg_parser believes everything starting with - must be an option
     const auto degrees = atoi(argv[1]);
     if (degrees < -1000 || degrees > 1000)
     {
-        printf("Invalid degrees value\n");
+        printf("ERROR: Invalid degrees value\n");
         return 1;
     }
 
@@ -360,7 +360,7 @@ int rotate(int argc, char** argv)
         }
         if (xTaskGetTickCount() - start_tick > MAX_TIME/portTICK_PERIOD_MS)
         {
-            printf("Error: Timeout!\n");
+            printf("ERROR: Timeout!\n");
             return 0;
         }
     }
@@ -387,13 +387,13 @@ int forward(int argc, char** argv)
     const auto pwr = forward_args.power->ival[0];
     if (pwr < 0 || pwr > 1000)
     {
-        printf("Invalid power value\n");
+        printf("ERROR: Invalid power value\n");
         return 1;
     }
     const auto ms = forward_args.milliseconds->ival[0];
     if (ms < 100 || ms > 5000)
     {
-        printf("Invalid milliseconds value\n");
+        printf("ERROR: Invalid milliseconds value\n");
         return 1;
     }
     state = Unknown;
@@ -411,13 +411,13 @@ int reverse(int argc, char** argv)
     const auto pwr = reverse_args.power->ival[0];
     if (pwr < 0 || pwr > 1000)
     {
-        printf("Invalid power value\n");
+        printf("ERROR: Invalid power value\n");
         return 1;
     }
     const auto ms = reverse_args.milliseconds->ival[0];
     if (ms < 100 || ms > 5000)
     {
-        printf("Invalid milliseconds value\n");
+        printf("ERROR: Invalid milliseconds value\n");
         return 1;
     }
     state = Unknown;
@@ -448,7 +448,7 @@ rotate_result rotate_to(bool fwd, int position)
     const int steps_needed = fabs(position - start_pos);
     if (steps_needed > MAX_TOTAL_PULSES)
     {
-        printf("Impossible: Distance %d\n", steps_needed);
+        printf("ERROR: Impossible: Distance %d\n", steps_needed);
         res.error_message = "move too large";
         return res;
     }
@@ -471,7 +471,7 @@ rotate_result rotate_to(bool fwd, int position)
             if (now - start_ms > max_engage_ms)
             {
                 backoff(-pwr);
-                printf("Engage timeout: start %ld now %ld\n",
+                printf("ERROR: Engage timeout: start %ld now %ld\n",
                        (long) start_ms, (long) now);
                 led.set_params(10, 100, 40);
                 res.error_message = "engage timeout";
@@ -506,7 +506,7 @@ rotate_result rotate_to(bool fwd, int position)
         if (steps_total > MAX_TOTAL_PULSES)
         {
             backoff(-pwr);
-            printf("\nTimeout!\n");
+            printf("ERROR: Timeout!\n");
             res.error_message = "limit timeout";
             return res;
         }
@@ -526,7 +526,7 @@ static int lock(int, char**)
 {
     if (!is_calibrated)
     {
-        printf("Error: not calibrated\n");
+        printf("ERROR: not calibrated\n");
         return 0;
     }
     update_state();
@@ -566,7 +566,7 @@ static int unlock(int, char**)
 {
     if (!is_calibrated)
     {
-        printf("Error: not calibrated\n");
+        printf("ERROR: not calibrated\n");
         return 0;
     }
     update_state();
@@ -647,7 +647,7 @@ static int status(int, char**)
         status = "changedmanually";
         break;
     default:
-        printf("Unhandled state: %d\n", (int) state);
+        printf("ERROR: Unhandled state: %d\n", (int) state);
         assert(false);
         break;
     }
@@ -904,17 +904,17 @@ extern "C" void console_task(void*)
         switch (err)
         {
         case ESP_ERR_NOT_FOUND:
-            printf("Unrecognized command\n");
+            printf("ERROR: Unrecognized command\n");
             break;
         case ESP_ERR_INVALID_ARG:
             // command was empty
             break;
         case ESP_OK:
             if (ret != ESP_OK)
-                printf("Command returned non-zero error code: 0x%x (%s)\n", ret, esp_err_to_name(err));
+                printf("ERROR: Command returned non-zero error code: 0x%x (%s)\n", ret, esp_err_to_name(err));
             break;
         default:
-            printf("Internal error: %s\n", esp_err_to_name(err));
+            printf("ERROR: Internal error: %s\n", esp_err_to_name(err));
             break;
         }
         linenoiseFree(line);
