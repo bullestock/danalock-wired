@@ -6,6 +6,7 @@
 
 #include "defines.h"
 #include "motor.h"
+#include "switches.h"
 
 #include "esp_system.h"
 #include "esp_log.h"
@@ -651,7 +652,10 @@ static int status(int, char**)
         assert(false);
         break;
     }
-    printf("OK: status %s\n", status);
+    printf("OK: status %s %s %s\n",
+           status,
+           is_door_closed() ? "closed" : "open",
+           is_handle_raised() ? "raised" : "lowered");
     return 0;
 }
 
@@ -661,25 +665,6 @@ static int read_encoder(int, char**)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
         printf("Encoder %d\n", encoder_position.load());
-    }
-    update_state();
-    printf("done\n");
-    return 0;
-}
-
-static int read_switches(int, char**)
-{
-    for (int n = 0; n < 100; ++n)
-    {
-        vTaskDelay(500/portTICK_PERIOD_MS);
-        printf("Switches: Door %d Handle %d\n",
-               (int) gpio_get_level(DOOR_SW),
-               (int) gpio_get_level(HANDLE_SW));
-        if ((n % 10) < 5)
-            led.set_params(100, 100, 100);
-        else
-            led.set_params(1, 100, 100);
-        
     }
     update_state();
     printf("done\n");
@@ -733,17 +718,6 @@ void initialize_console()
 
 extern "C" void console_task(void*)
 {
-    // Configure switch GPIO pins
-    
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_INPUT;
-    // bit mask of the pins that you want to set
-    io_conf.pin_bit_mask = (1ULL << DOOR_SW) | (1ULL << HANDLE_SW);
-    io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    ESP_ERROR_CHECK(gpio_config(&io_conf));
-
     initialize_console();
 
     // Register commands
@@ -814,15 +788,6 @@ extern "C" void console_task(void*)
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&read_encoder_cmd));
-
-    const esp_console_cmd_t read_switches_cmd = {
-        .command = "read_switches",
-        .help = "Read switches",
-        .hint = nullptr,
-        .func = &read_switches,
-        .argtable = nullptr
-    };
-    ESP_ERROR_CHECK(esp_console_cmd_register(&read_switches_cmd));
 
     const esp_console_cmd_t calibrate_cmd = {
         .command = "calibrate",

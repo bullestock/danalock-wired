@@ -2,6 +2,7 @@
 #include "encoder.h"
 #include "led.h"
 #include "motor.h"
+#include "switches.h"
 
 #include <stdio.h>
 
@@ -68,9 +69,10 @@ extern "C" void app_main()
     nvs_close(my_handle);
     
     motor = new Motor(AIN1, AIN2, PWMA, STBY);
+    init_switches();
 
     // Not calibrated yet
-    led.set_params(50, 100, 1000);
+    led.set_params(80, 100, 10);
 
     printf("Danalock " VERSION " ready, default power: %d, backoff: %d\n",
            default_motor_power, backoff_pulses);
