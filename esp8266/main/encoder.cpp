@@ -1,4 +1,5 @@
 #include "defines.h"
+#include "switches.h"
 
 #include <cmath>
 #include <stdio.h>
@@ -106,6 +107,7 @@ extern "C" void encoder_task(void*)
         encoder.loop();
         encoder_position = encoder.getPosition();
         led.update();
+        switches.update();
         vTaskDelay(1 / portTICK_PERIOD_MS);
     }
 }

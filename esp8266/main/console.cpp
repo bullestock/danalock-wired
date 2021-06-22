@@ -654,8 +654,8 @@ static int status(int, char**)
     }
     printf("OK: status %s %s %s\n",
            status,
-           is_door_closed() ? "closed" : "open",
-           is_handle_raised() ? "raised" : "lowered");
+           switches.is_door_closed() ? "closed" : "open",
+           switches.is_handle_raised() ? "raised" : "lowered");
     return 0;
 }
 

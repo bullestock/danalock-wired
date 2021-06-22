@@ -20,6 +20,7 @@ extern "C" void encoder_task(void*);
 Encoder encoder(ENC_A, ENC_B);
 Led led(LED);
 Motor* motor = nullptr;
+Switches switches;
 
 int default_motor_power = MOTOR_DEFAULT_POWER;
 int backoff_pulses = DEFAULT_BACKOFF_PULSES;
@@ -69,7 +70,6 @@ extern "C" void app_main()
     nvs_close(my_handle);
     
     motor = new Motor(AIN1, AIN2, PWMA, STBY);
-    init_switches();
 
     // Not calibrated yet
     led.set_params(80, 100, 10);
