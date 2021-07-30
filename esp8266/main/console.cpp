@@ -309,6 +309,7 @@ static int calibrate(int argc, char** argv)
 static int uncalibrate(int argc, char** argv)
 {
     is_calibrated = false;
+    state = Unknown;
 
     printf("OK\n");
     
@@ -659,6 +660,21 @@ static int status(int, char**)
     return 0;
 }
 
+static int read_switches(int, char**)
+{
+    for (int n = 0; n < 100; ++n)
+    {
+        vTaskDelay(500/portTICK_PERIOD_MS);
+        printf("Door %d handle %d\n",
+               (int) gpio_get_level(DOOR_SW),
+               (int) gpio_get_level(HANDLE_SW));
+
+    }
+    update_state();
+    printf("done\n");
+    return 0;
+}
+
 static int read_encoder(int, char**)
 {
     for (int n = 0; n < 100; ++n)
@@ -853,6 +869,15 @@ extern "C" void console_task(void*)
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&status_cmd));
+
+    const esp_console_cmd_t read_switches_cmd = {
+        .command = "read_switches",
+        .help = "Read switches",
+        .hint = nullptr,
+        .func = &read_switches,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&read_switches_cmd));
 
     const char* prompt = "";
 
