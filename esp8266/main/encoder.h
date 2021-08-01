@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <limits>
+#include <utility>
 
 #include "driver/gpio.h"
 
@@ -18,6 +19,8 @@ public:
     
     int getPosition() const;
     void resetPosition(int p = 0);
+
+    std::pair<bool, bool> get_raw() const;
 
     enum Direction
     {

@@ -95,6 +95,12 @@ void Encoder::loop()
         position = last_position;
 }
 
+std::pair<bool, bool> Encoder::get_raw() const
+{
+    return std::make_pair(gpio_get_level(pin1),
+                          gpio_get_level(pin2));
+}
+
 std::atomic<int> encoder_position{0};
 std::atomic<bool> reset_encoder{false};
 

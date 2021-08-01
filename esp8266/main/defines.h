@@ -10,9 +10,9 @@ constexpr const auto AIN1 = (gpio_num_t) 5; // D1
 constexpr const auto AIN2 = (gpio_num_t) 4; // D2
 constexpr const auto PWMA = (gpio_num_t) 0; // D3 - 12K pullup
 constexpr const auto STBY = (gpio_num_t) 2; // D4 - 12K pullup + LED
-constexpr const auto ENC_A = (gpio_num_t) 14; // D5
-constexpr const auto ENC_B = (gpio_num_t) 12; // D6
-constexpr const auto LED = (gpio_num_t) 16; // D0
+constexpr const auto ENC_A = (gpio_num_t) 16; // D0
+constexpr const auto ENC_B = (gpio_num_t) 14; // D5
+constexpr const auto LED = (gpio_num_t) 12; // D6
 constexpr const auto DOOR_SW = (gpio_num_t) 13; // D7
 constexpr const auto HANDLE_SW = (gpio_num_t) 15; // D8 - 12K pulldown
 

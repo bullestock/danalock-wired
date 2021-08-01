@@ -680,7 +680,10 @@ static int read_encoder(int, char**)
     for (int n = 0; n < 100; ++n)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
-        printf("Encoder %d\n", encoder_position.load());
+        auto [p1, p2] = encoder.get_raw();
+        printf("Encoder %d (%d %d)\n",
+               encoder_position.load(), p1, p2);
+        led.update();
     }
     update_state();
     printf("done\n");
