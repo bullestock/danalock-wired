@@ -8,17 +8,17 @@
 #include "motor.h"
 #include "switches.h"
 
-#include "esp_system.h"
-#include "esp_log.h"
-#include "esp_console.h"
-#include "esp_vfs_dev.h"
-#include "FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/uart.h"
-#include "linenoise/linenoise.h"
-#include "argtable3/argtable3.h"
-#include "nvs.h"
-#include "nvs_flash.h"
+#include <esp_system.h>
+#include <esp_log.h>
+#include <esp_console.h>
+#include <esp_vfs_dev.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <driver/uart.h>
+#include <linenoise/linenoise.h>
+#include <argtable3/argtable3.h>
+#include <nvs.h>
+#include <nvs_flash.h>
 
 int verbosity = 0;
 
@@ -261,6 +261,7 @@ bool do_calibration(bool fwd)
             led.set_params(10, 100, 10);
             return false;
         }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
 
@@ -365,6 +366,7 @@ int rotate(int argc, char** argv)
             printf("ERROR: Timeout!\n");
             return 0;
         }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
     motor->brake();
     return 0;
@@ -517,6 +519,7 @@ rotate_result rotate_to(bool fwd, int position)
             verbose_printf("rotate_to: steps_total %d\n", steps_needed);
             break;
         }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 
     motor->brake();
@@ -692,47 +695,56 @@ static int read_encoder(int, char**)
 
 void initialize_console()
 {
-    // Disable buffering on stdin
+    /* Disable buffering on stdin */
     setvbuf(stdin, NULL, _IONBF, 0);
 
-    // Minicom, screen, idf_monitor send CR when ENTER key is pressed
+    /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
     esp_vfs_dev_uart_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
-    // Move the caret to the beginning of the next line on '\n'
+    /* Move the caret to the beginning of the next line on '\n' */
     esp_vfs_dev_uart_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
 
-    uart_config_t uart_config = {
-        .baud_rate = CONFIG_ESP_CONSOLE_UART_BAUDRATE,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .rx_flow_ctrl_thresh = 0
-    };
+    /* Configure UART. Note that REF_TICK is used so that the baud rate remains
+     * correct while APB frequency is changing in light sleep mode.
+     */
+    uart_config_t uart_config;
+    memset(&uart_config, 0, sizeof(uart_config));
+    uart_config.baud_rate = CONFIG_ESP_CONSOLE_UART_BAUDRATE;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.use_ref_tick = true;
     ESP_ERROR_CHECK(uart_param_config((uart_port_t) CONFIG_ESP_CONSOLE_UART_NUM, &uart_config));
 
-    // Install UART driver for interrupt-driven reads and writes
+    /* Install UART driver for interrupt-driven reads and writes */
     ESP_ERROR_CHECK(uart_driver_install((uart_port_t) CONFIG_ESP_CONSOLE_UART_NUM,
-                                        256, 0, 0, NULL, 0));
+                                         256, 0, 0, NULL, 0));
 
-    // Tell VFS to use UART driver
+    /* Tell VFS to use UART driver */
     esp_vfs_dev_uart_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
 
-    // Initialize the console
-    esp_console_config_t console_config = {
-        .max_cmdline_length = 256,
-        .max_cmdline_args = 8,
+    /* Initialize the console */
+    esp_console_config_t console_config;
+    memset(&console_config, 0, sizeof(console_config));
+    console_config.max_cmdline_args = 8;
+    console_config.max_cmdline_length = 256;
 #if CONFIG_LOG_COLORS
-        .hint_color = atoi(LOG_COLOR_CYAN),
-        .hint_bold = 0
+    console_config.hint_color = atoi(LOG_COLOR_CYAN);
 #endif
-    };
     ESP_ERROR_CHECK(esp_console_init(&console_config));
 
+    /* Configure linenoise line completion library */
+    /* Enable multiline editing. If not set, long commands will scroll within
+     * single line.
+     */
     linenoiseSetMultiLine(1);
+
+    /* Tell linenoise where to get command completions and hints */
     linenoiseSetCompletionCallback(&esp_console_get_completion);
     linenoiseSetHintsCallback((linenoiseHintsCallback*) &esp_console_get_hint);
+
+    /* Set command history size */
     linenoiseHistorySetMaxLen(100);
-    linenoiseSetDumbMode(1);
+    //linenoiseSetDumbMode(1);
 }
 
 extern "C" void console_task(void*)

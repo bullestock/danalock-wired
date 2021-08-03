@@ -4,8 +4,8 @@
 #include <cmath>
 #include <stdio.h>
 
-#include "FreeRTOS.h"
-#include "freertos/task.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 Encoder::Encoder(gpio_num_t _pin1, gpio_num_t _pin2, int _lower_bound, int _upper_bound, int initial_pos)
     : pin1(_pin1),
@@ -114,6 +114,6 @@ extern "C" void encoder_task(void*)
         encoder_position = encoder.getPosition();
         led.update();
         switches.update();
-        vTaskDelay(1 / portTICK_PERIOD_MS);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }

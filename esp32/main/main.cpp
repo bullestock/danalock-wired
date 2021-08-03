@@ -27,9 +27,6 @@ int backoff_pulses = DEFAULT_BACKOFF_PULSES;
 
 extern "C" void app_main()
 {
-    // We don't need wifi
-    ESP_ERROR_CHECK(esp_wifi_deinit());
-
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES)
     {

@@ -1,7 +1,7 @@
 #include "motor.h"
 #include "defines.h"
 
-#include "driver/pwm.h"
+#include "driver/ledc.h"
 
 #include <cstdlib>
 
@@ -27,21 +27,27 @@ Motor::Motor(gpio_num_t In1pin, gpio_num_t In2pin, gpio_num_t PWMpin, gpio_num_t
     // configure GPIO with the given settings
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 
-    // Configure PWM pin
-    
-    const uint32_t pwm_pin_num[1] = {
-        PWM
+    // Prepare and then apply the LEDC PWM timer configuration
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode       = LEDC_LOW_SPEED_MODE,
+        .duty_resolution  = LEDC_TIMER_10_BIT,
+        .timer_num        = LEDC_TIMER_0,
+        .freq_hz          = 1000,  // Set output frequency at 1 kHz
+        .clk_cfg          = LEDC_AUTO_CLK
     };
-    uint32_t pwm_duty[1] = {
-        500
-    };
-    float pwm_phase[1] = {
-        0
-    };
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 
-    ESP_ERROR_CHECK(pwm_init(1000, pwm_duty, 1, pwm_pin_num));
-    ESP_ERROR_CHECK(pwm_set_phases(pwm_phase));
-    ESP_ERROR_CHECK(pwm_start());
+    // Prepare and then apply the LEDC PWM channel configuration
+    ledc_channel_config_t ledc_channel = {
+        .gpio_num       = PWM,
+        .speed_mode     = LEDC_LOW_SPEED_MODE,
+        .channel        = LEDC_CHANNEL_0,
+        .intr_type      = LEDC_INTR_DISABLE,
+        .timer_sel      = LEDC_TIMER_0,
+        .duty           = 0, // Set duty to 0%
+        .hpoint         = 0,
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 }
 
 int Motor::get_max_engage_time_ms(int pwr) const
@@ -90,24 +96,24 @@ void Motor::fwd(int speed)
 {
     ESP_ERROR_CHECK(gpio_set_level(In1, 0));
     ESP_ERROR_CHECK(gpio_set_level(In2, 1));
-    ESP_ERROR_CHECK(pwm_set_duty(0, speed));
-    ESP_ERROR_CHECK(pwm_start());
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, speed));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
 }
 
 void Motor::rev(int speed)
 {
     ESP_ERROR_CHECK(gpio_set_level(In1, 1));
     ESP_ERROR_CHECK(gpio_set_level(In2, 0));
-    ESP_ERROR_CHECK(pwm_set_duty(0, speed));
-    ESP_ERROR_CHECK(pwm_start());
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, speed));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
 }
 
 void Motor::brake()
 {
     ESP_ERROR_CHECK(gpio_set_level(In1, 1));
     ESP_ERROR_CHECK(gpio_set_level(In2, 1));
-    ESP_ERROR_CHECK(pwm_set_duty(0, 0));
-    ESP_ERROR_CHECK(pwm_start());
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
 }
 
 void Motor::standby()

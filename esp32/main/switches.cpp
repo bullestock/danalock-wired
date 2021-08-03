@@ -11,13 +11,13 @@ Switches::Switches()
     // bit mask of the pins that you want to set
     io_conf.pin_bit_mask = (1ULL << DOOR_SW) | (1ULL << HANDLE_SW);
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     ESP_ERROR_CHECK(gpio_config(&io_conf));
 }
 
 bool Switches::is_door_closed() const
 {
-    return gpio_get_level(DOOR_SW);
+    return !gpio_get_level(DOOR_SW);
 }
 
 bool Switches::is_handle_raised() const
@@ -36,7 +36,7 @@ void Switches::update()
         m_handle_raised.store(false);
         return;
     }
-    if (gpio_get_level(HANDLE_SW))
+    if (!gpio_get_level(HANDLE_SW))
     {
         // Door is closed, and handle switch is active. Handle is now raised.
         m_handle_raised.store(true);

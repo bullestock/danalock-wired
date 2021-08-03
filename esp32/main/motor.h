@@ -16,7 +16,7 @@ public:
     /// Get maximum time to wait for movement.
     int get_rotation_timeout_ms(int pwr) const;
     
-    // Drive in direction given by sign, at speed given by magnitude of the parameter (0-1000).
+    // Drive in direction given by sign, at speed given by magnitude of the parameter (0-1023).
     void drive(int speed);  
 
     // Stop motor by setting both input pins high
