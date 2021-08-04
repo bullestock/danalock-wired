@@ -669,8 +669,8 @@ static int read_switches(int, char**)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
         printf("Door %d handle %d\n",
-               (int) gpio_get_level(DOOR_SW),
-               (int) gpio_get_level(HANDLE_SW));
+               (int) !gpio_get_level(DOOR_SW),
+               (int) !gpio_get_level(HANDLE_SW));
 
     }
     update_state();
