@@ -69,7 +69,7 @@ static void update_state()
     case Locked:
     case LockedManually:
         // If position is no longer inside the 'locked' interval, someone has fiddled
-        if (pos < locked_position || pos > locked_position + backoff_pulses)
+        if (pos < locked_position || pos > locked_position + 2*backoff_pulses)
         {
             verbose_printf("update_state: outside locked_position\n");
             state = ChangedManually;
@@ -79,7 +79,7 @@ static void update_state()
     case Unlocked:
     case UnlockedManually:
         // If position is no longer inside the 'unlocked' interval, someone has fiddled
-        if (pos < unlocked_position - backoff_pulses || pos > unlocked_position)
+        if (pos < unlocked_position - 2*backoff_pulses || pos > unlocked_position)
         {
             verbose_printf("update_state: outside unlocked_position\n");
             state = ChangedManually;
@@ -93,12 +93,12 @@ static void update_state()
     if (state == ChangedManually)
     {
         // Check if we are now inside either the 'locked' or 'unlocked' interval
-        if (pos >= locked_position && pos <= locked_position + backoff_pulses)
+        if (pos >= locked_position && pos <= locked_position + 2*backoff_pulses)
         {
             verbose_printf("update_state: inside locked_position\n");
             state = LockedManually;
         }
-        if (pos >= unlocked_position - backoff_pulses && pos <= unlocked_position)
+        if (pos >= unlocked_position - 2*backoff_pulses && pos <= unlocked_position)
         {
             verbose_printf("update_state: inside unlocked_position\n");
             state = UnlockedManually;
@@ -192,23 +192,26 @@ static int set_backoff(int argc, char** argv)
 
 static void backoff(int pwr)
 {
-    vTaskDelay(Motor::get_backoff_time_ms(pwr)/portTICK_PERIOD_MS);
+    int delay = Motor::get_backoff_time_ms(pwr);
+    verbose_printf("backoff(): delay %d\n", delay);
+    delay /= portTICK_PERIOD_MS;
+    vTaskDelay(delay/2);
     verbose_printf("backoff(): drive\n");
-    motor->drive(pwr);
-    vTaskDelay(Motor::get_backoff_time_ms(pwr)/portTICK_PERIOD_MS);
+    motor->drive(-pwr);
+    vTaskDelay(delay);
     verbose_printf("backoff(): brake\n");
     motor->brake();
-    vTaskDelay(Motor::get_backoff_time_ms(pwr)/portTICK_PERIOD_MS);
+    vTaskDelay(delay/2);
 }
 
 // true -> lock
 bool do_calibration(bool fwd)
 {
-    const auto pwr = fwd ? -MOTOR_CALIBRATE_POWER : MOTOR_CALIBRATE_POWER;
+    const auto pwr = fwd ? MOTOR_CALIBRATE_POWER : -MOTOR_CALIBRATE_POWER;
     verbose_printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_ms = xTaskGetTickCount()*portTICK_PERIOD_MS;
     verbose_printf("- start %ld\n", (long) start_ms);
-    const auto start_pos = encoder_position.load();
+    const int start_pos = encoder_position.load();
     bool engaged = false;
     motor->drive(pwr);
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
@@ -219,14 +222,14 @@ bool do_calibration(bool fwd)
     while (1)
     {
         const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
-        const auto pos = encoder_position.load();
+        const int pos = encoder_position.load();
         if (!engaged)
         {
             if (now - start_ms > max_engage_ms)
             {
                 printf("ERROR: Engage timeout!\n");
                 verbose_printf("- now\n");
-                backoff(-pwr);
+                backoff(pwr);
                 led.set_params(10, 100, 40);
                 return false;
             }
@@ -246,9 +249,16 @@ bool do_calibration(bool fwd)
             else if (now - last_position_change > no_rotation_timeout)
             {
                 motor->brake();
-                verbose_printf("Hit limit\n");
+                verbose_printf("Hit limit: %d\n", pos);
+                if (fwd)
+                {
+                    // Use this position as zero
+                    reset_encoder.store(true);
+                    vTaskDelay(100 / portTICK_PERIOD_MS);
+                }
                 verbose_wait();
-                backoff(-pwr);
+                backoff(pwr);
+                verbose_printf("After backoff: %d\n", encoder_position.load());
                 verbose_printf("last change %ld\n", (long) last_position_change);
                 return true;
             }
@@ -256,8 +266,8 @@ bool do_calibration(bool fwd)
         last_encoder_pos = pos;
         if (fabs(pos - start_pos) > MAX_TOTAL_PULSES)
         {
-            backoff(-pwr);
-            printf("ERROR: Timeout!\n");
+            backoff(pwr);
+            printf("ERROR: Timeout (start %d pos %d -> %d pulses)!\n", start_pos, pos, (int) fabs(pos - start_pos));
             led.set_params(10, 100, 10);
             return false;
         }
@@ -278,8 +288,6 @@ static int calibrate(int argc, char** argv)
     if (!ok)
         return 0;
 
-    // Use this position as zero
-    reset_encoder.store(true);
     locked_position = 0;
     
     // Now unlock
@@ -361,9 +369,10 @@ int rotate(int argc, char** argv)
             verbose_printf("Encoder %d\n", pos);
             k = 0;
         }
-        if (xTaskGetTickCount() - start_tick > MAX_TIME/portTICK_PERIOD_MS)
+        const auto ticks = xTaskGetTickCount() - start_tick;
+        if (ticks > MAX_TIME/portTICK_PERIOD_MS)
         {
-            printf("ERROR: Timeout!\n");
+            printf("ERROR: Timeout (%d ticks)!\n", ticks);
             return 0;
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
@@ -440,9 +449,9 @@ rotate_result rotate_to(bool fwd, int position)
     rotate_result res;
     
     const auto start_pos = encoder_position.load();
-    verbose_printf("rotate_to: start_pos %d\n", start_pos);
-    if ((fwd && (position < start_pos)) ||
-        (!fwd && (position > start_pos)))
+    verbose_printf("rotate_to %d: start_pos %d\n", position, start_pos);
+    if ((fwd && (position > start_pos)) ||
+        (!fwd && (position < start_pos)))
     {
         fwd = !fwd;
         verbose_printf("reverse\n");
@@ -474,7 +483,7 @@ rotate_result rotate_to(bool fwd, int position)
         {
             if (now - start_ms > max_engage_ms)
             {
-                backoff(-pwr);
+                backoff(pwr);
                 printf("ERROR: Engage timeout: start %ld now %ld\n",
                        (long) start_ms, (long) now);
                 led.set_params(10, 100, 40);
@@ -499,18 +508,18 @@ rotate_result rotate_to(bool fwd, int position)
                 motor->brake();
                 verbose_printf("Hit limit\n");
                 verbose_wait();
-                backoff(-pwr);
+                backoff(pwr);
                 verbose_printf("last change %ld\n", (long) last_position_change);
                 res.error_message = "hit limit";
                 return res;
             }
         }
         last_encoder_pos = pos;
-        const auto steps_total = fabs(pos - start_pos);
+        const int steps_total = fabs(pos - start_pos);
         if (steps_total > MAX_TOTAL_PULSES)
         {
-            backoff(-pwr);
-            printf("ERROR: Timeout!\n");
+            backoff(pwr);
+            printf("ERROR: Timeout (%d pulses)!\n", steps_total);
             res.error_message = "limit timeout";
             return res;
         }
@@ -539,11 +548,11 @@ static int lock(int, char**)
     {
         state = Unknown;
         led.set_params(50, 100, 1);
-        const auto res = rotate_to(false, locked_position + backoff_pulses - 1);
+        const auto res = rotate_to(true, locked_position + backoff_pulses - 1);
         if (!res.ok)
         {
             backoff(default_motor_power);
-            if (rotate_to(true, unlocked_position - backoff_pulses + 1).ok)
+            if (rotate_to(false, unlocked_position - backoff_pulses + 1).ok)
             {
                 printf("ERROR: could not lock (still unlocked): %s\n", res.error_message.c_str());
                 state = Unlocked;
@@ -579,11 +588,11 @@ static int unlock(int, char**)
     {
         state = Unknown;
         led.set_params(10, 100, 1);
-        const auto res = rotate_to(true, unlocked_position - backoff_pulses + 1);
+        const auto res = rotate_to(false, unlocked_position - backoff_pulses + 1);
         if (!res.ok)
         {
-            backoff(default_motor_power);
-            if (rotate_to(false, locked_position + backoff_pulses - 1).ok)
+            backoff(-default_motor_power);
+            if (rotate_to(true, locked_position + backoff_pulses - 1).ok)
             {
                 printf("ERROR: could not unlock (still locked): %s\n", res.error_message.c_str());
                 state = Locked;
