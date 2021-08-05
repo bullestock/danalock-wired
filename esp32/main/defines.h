@@ -29,7 +29,7 @@ constexpr const int MOTOR_DEFAULT_POWER = 300; // reduced for testing
 constexpr const int DEFAULT_BACKOFF_PULSES = 10;
 
 /// Number of ms to back off after hitting limit
-constexpr const int BACKOFF_MS = 1200;
+constexpr const int BACKOFF_MS = 1500;
 
 /// Keys for NVS (keep short)
 constexpr const char* DEFAULT_POWER_KEY =     "default_pwr";
