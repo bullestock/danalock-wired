@@ -114,6 +114,6 @@ extern "C" void encoder_task(void*)
         encoder_position = encoder.getPosition();
         led.update();
         switches.update();
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
     }
 }
