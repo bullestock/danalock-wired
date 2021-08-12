@@ -747,13 +747,9 @@ void initialize_console()
      */
     linenoiseSetMultiLine(1);
 
-    /* Tell linenoise where to get command completions and hints */
-    linenoiseSetCompletionCallback(&esp_console_get_completion);
-    linenoiseSetHintsCallback((linenoiseHintsCallback*) &esp_console_get_hint);
-
     /* Set command history size */
     linenoiseHistorySetMaxLen(100);
-    //linenoiseSetDumbMode(1);
+    linenoiseSetDumbMode(1);
 }
 
 extern "C" void console_task(void*)
