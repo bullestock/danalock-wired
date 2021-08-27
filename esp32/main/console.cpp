@@ -42,6 +42,7 @@ void verbose_wait()
 
 int locked_position = 0;
 int unlocked_position = 0;
+int maximum_position = 0;
 bool is_calibrated = false;
 enum State {
     // Initial state until calibration
@@ -64,6 +65,14 @@ static void update_state()
     // Check if anybody has tinkered with the knob
     const auto pos = encoder_position.load();
     verbose_printf("update_state: pos %d\n", pos);
+    if (pos < 0 || pos > maximum_position + 2)
+    {
+        // We are out of synch.
+        is_calibrated = false;
+        state = Unknown;
+        verbose_printf("update_state: impossible position, calibration needed\n");
+    }
+    
     switch (state)
     {
     case Locked:
@@ -252,10 +261,14 @@ bool do_calibration(bool fwd)
                 verbose_printf("Hit limit: %d\n", pos);
                 if (fwd)
                 {
-                    // Use this position as zero
+                    // Use this position (fully locked) as zero
                     reset_encoder.store(true);
                     vTaskDelay(100 / portTICK_PERIOD_MS);
                 }
+                else
+                    // This is the maximum position
+                    maximum_position = pos;
+
                 verbose_wait();
                 backoff(pwr);
                 verbose_printf("After backoff: %d\n", encoder_position.load());

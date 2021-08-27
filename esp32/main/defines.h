@@ -4,7 +4,7 @@
 #include "led.h"
 #include "motor.h"
 
-#define VERSION "0.5"
+#define VERSION "0.6"
 
 constexpr const auto AIN1 = (gpio_num_t) 5;
 constexpr const auto AIN2 = (gpio_num_t) 23;
