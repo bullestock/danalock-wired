@@ -83,6 +83,19 @@ static void update_state()
             verbose_printf("update_state: outside locked_position\n");
             state = ChangedManually;
         }
+        if (switches.was_door_open())
+        {
+            // Door has been opened since we locked. Recalibration is needed.
+            verbose_printf("update_state: door was open\n");
+            state = Unknown;
+            is_calibrated = false;
+        }
+        if (!switches.is_door_closed())
+        {
+            verbose_printf("update_state: door is open\n");
+            state = Unknown;
+            is_calibrated = false;
+        }
         break;
 
     case Unlocked:
@@ -585,6 +598,7 @@ static int lock(int, char**)
                        LED_DEFAULT_PERIOD);
         state = Locked;
     }
+    switches.set_door_locked();
     printf("OK: locked\n");
     return 0;
 }

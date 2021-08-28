@@ -15,8 +15,15 @@ public:
 
     bool is_handle_raised() const;
 
+    /// Called when the door is locked.
+    void set_door_locked();
+
+    /// Return true if the door has been open since set_door_locked() was called.
+    bool was_door_open() const;
+
 private:
     std::atomic<bool> m_handle_raised{false};
+    std::atomic<bool> m_door_locked{false};
 };
 
 extern Switches switches;

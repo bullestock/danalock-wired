@@ -25,6 +25,16 @@ bool Switches::is_handle_raised() const
     return m_handle_raised.load();
 }
 
+void Switches::set_door_locked()
+{
+    m_door_locked.store(true);
+}
+
+bool Switches::was_door_open() const
+{
+    return !m_door_locked.load();
+}
+
 // The handle state changes to 'raised' if
 // we have observed that the handle switch was active AND the door switch was active.
 // If the door switch is inactive at any point after this, the handle state changes to 'not raised'.
@@ -34,6 +44,8 @@ void Switches::update()
     {
         // Door is open, handle cannot be raised
         m_handle_raised.store(false);
+        // Remember that the door was opened
+        m_door_locked.store(false);
         return;
     }
     if (!gpio_get_level(HANDLE_SW))
