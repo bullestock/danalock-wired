@@ -4,7 +4,7 @@
 #include "led.h"
 #include "motor.h"
 
-#define VERSION "0.6"
+#define VERSION "0.7"
 
 constexpr const auto AIN1 = (gpio_num_t) 5;
 constexpr const auto AIN2 = (gpio_num_t) 23;
@@ -29,7 +29,7 @@ constexpr const int MOTOR_DEFAULT_POWER = 300; // reduced for testing
 constexpr const int DEFAULT_BACKOFF_PULSES = 10;
 
 /// Number of ms to back off after hitting limit
-constexpr const int BACKOFF_MS = 1500;
+constexpr const int BACKOFF_MS = 750;
 
 /// Keys for NVS (keep short)
 constexpr const char* DEFAULT_POWER_KEY =     "default_pwr";
