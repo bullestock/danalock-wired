@@ -67,7 +67,7 @@ int Motor::get_backoff_time_ms(int pwr)
 
     int abs_pwr = abs(pwr);
     if (abs_pwr > 400)
-        ms = BACKOFF_MS*2;
+        ms = BACKOFF_MS/2;
 
     return ms;
 }
