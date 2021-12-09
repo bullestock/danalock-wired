@@ -692,10 +692,12 @@ static int status(int, char**)
         assert(false);
         break;
     }
-    printf("OK: status %s %s %s\n",
+    const auto pos = encoder_position.load();
+    printf("OK: status %s %s %s %d\n",
            status,
            switches.is_door_closed() ? "closed" : "open",
-           switches.is_handle_raised() ? "raised" : "lowered");
+           switches.is_handle_raised() ? "raised" : "lowered",
+           (int) pos);
     return 0;
 }
 
@@ -735,9 +737,9 @@ void initialize_console()
     setvbuf(stdin, NULL, _IONBF, 0);
 
     /* Minicom, screen, idf_monitor send CR when ENTER key is pressed */
-    esp_vfs_dev_uart_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+    esp_vfs_dev_uart_port_set_rx_line_endings(0, ESP_LINE_ENDINGS_CR);
     /* Move the caret to the beginning of the next line on '\n' */
-    esp_vfs_dev_uart_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+    esp_vfs_dev_uart_port_set_tx_line_endings(0, ESP_LINE_ENDINGS_CRLF);
 
     /* Configure UART. Note that REF_TICK is used so that the baud rate remains
      * correct while APB frequency is changing in light sleep mode.
@@ -748,7 +750,7 @@ void initialize_console()
     uart_config.data_bits = UART_DATA_8_BITS;
     uart_config.parity = UART_PARITY_DISABLE;
     uart_config.stop_bits = UART_STOP_BITS_1;
-    uart_config.use_ref_tick = true;
+    uart_config.source_clk = UART_SCLK_REF_TICK;
     ESP_ERROR_CHECK(uart_param_config((uart_port_t) CONFIG_ESP_CONSOLE_UART_NUM, &uart_config));
 
     /* Install UART driver for interrupt-driven reads and writes */
