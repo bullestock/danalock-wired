@@ -75,5 +75,7 @@ extern "C" void app_main()
            default_motor_power, backoff_pulses);
     
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
+#ifndef SIMULATE
     xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
+#endif
 }

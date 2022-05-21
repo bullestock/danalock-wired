@@ -48,9 +48,6 @@ void Switches::update()
         m_door_locked.store(false);
         return;
     }
-    if (!gpio_get_level(HANDLE_SW))
-    {
-        // Door is closed, and handle switch is active. Handle is now raised.
-        m_handle_raised.store(true);
-    }
+    // Door is closed, and handle switch is active. Handle is now raised.
+    m_handle_raised.store(!gpio_get_level(HANDLE_SW));
 }

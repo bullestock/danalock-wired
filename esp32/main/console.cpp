@@ -304,7 +304,14 @@ bool do_calibration(bool fwd)
 static int calibrate(int argc, char** argv)
 {
     state = Unknown;
-    
+
+#ifdef SIMULATE
+    locked_position = 0;
+    unlocked_position = 50;
+    maximum_position = 60;
+    encoder_position = 45;
+    is_calibrated = true;
+#else
     verbose_printf("Calibrating...\n");
 
     // We assume that current state is unlocked, so first step is to lock
@@ -326,7 +333,7 @@ static int calibrate(int argc, char** argv)
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
                    LED_DEFAULT_PERIOD);
-
+#endif
     printf("OK: locked %d-%d Unlocked %d-%d\n",
            locked_position, locked_position + backoff_pulses,
            unlocked_position - backoff_pulses, unlocked_position);
@@ -569,7 +576,12 @@ static int lock(int, char**)
         printf("ERROR: not calibrated\n");
         return 0;
     }
+#ifdef SIMULATE
+    state = Locked;
+    encoder_position = 5;
+#else
     update_state();
+#endif
     if (state != Locked)
     {
         state = Unknown;
@@ -610,7 +622,12 @@ static int unlock(int, char**)
         printf("ERROR: not calibrated\n");
         return 0;
     }
+#ifdef SIMULATE
+    state = Unlocked;
+    encoder_position = 45;
+#else
     update_state();
+#endif
     if (state != Unlocked)
     {
         state = Unknown;
@@ -658,12 +675,19 @@ static int set_verbosity(int argc, char** argv)
 
 static int version(int, char**)
 {
+#ifdef SIMULATE
+    printf("Danalock " VERSION " - SIMULATION MODE\n");
+#else
     printf("Danalock " VERSION "\n");
+#endif
     return 0;
 }
 
 static int status(int, char**)
 {
+#ifdef SIMULATE
+    switches.update();
+#endif
     verbose_printf("status: initial state %d\n", (int) state);
     update_state();
     const char* status = "?";
