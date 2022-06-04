@@ -16,7 +16,7 @@ constexpr const auto LED = (gpio_num_t) 21;
 constexpr const auto DOOR_SW = (gpio_num_t) 16;
 constexpr const auto HANDLE_SW = (gpio_num_t) 17;
 
-constexpr const int LED_DEFAULT_PERIOD = 10;
+constexpr const int LED_DEFAULT_PERIOD = 1000;
 constexpr const int LED_DEFAULT_DUTY_CYCLE_NUM = 1;
 constexpr const int LED_DEFAULT_DUTY_CYCLE_DEN = 100;
 
