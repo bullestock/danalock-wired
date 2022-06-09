@@ -232,8 +232,8 @@ bool do_calibration(bool fwd)
     const auto pwr = fwd ? MOTOR_CALIBRATE_POWER : -MOTOR_CALIBRATE_POWER;
     verbose_printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_ms = xTaskGetTickCount()*portTICK_PERIOD_MS;
-    verbose_printf("- start %ld\n", (long) start_ms);
     const int start_pos = encoder_position.load();
+    verbose_printf("- start %ld pos %d\n", (long) start_ms, start_pos);
     bool engaged = false;
     motor->drive(pwr);
     const int MAX_TOTAL_PULSES = 2.5 * Encoder::STEPS_PER_REVOLUTION;
@@ -258,7 +258,7 @@ bool do_calibration(bool fwd)
             if (pos != start_pos)
             {
                 engaged = true;
-                verbose_printf("Engaged\n");
+                verbose_printf("Engaged: %d\n", pos);
                 last_position_change = now;
             }
         }
