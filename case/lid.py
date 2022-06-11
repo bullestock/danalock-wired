@@ -35,9 +35,12 @@ filler_indent = 3
 # Pod
 pod_l = 17
 pod_l2 = 22
-pod_l3 = 11
+pod_l3 = 5
 pod_h = 14
 pod_h2 = 11
+avpod_l = 21 # z
+avpod_h = 14.5 # x
+avpod_w = 24 # y
 wt = 2
 outer_w = lid_w - filler_indent
 
@@ -46,7 +49,7 @@ def pod():
     pod_outer = (trans(0, 0, pod_h2, roundcube(pod_l + pod_l2, outer_w, pod_h, r)) +
                  trans(0, 0, 0, roundcube(pod_l + pod_l3, outer_w, pod_h2 + 2*r, r)))
     inner_w = pod_h + pod_h2 - 4*wt
-    pod_inner = trans(-r, 2, 3.5, roundcube(pod_l2, esp_w - 3, inner_w, r))
+    pod_inner = trans(-r, 2, 3.5-2, roundcube(pod_l2, esp_w - 3, inner_w, r))
     usb_w = 12
     usb_h = 8
     esp_offset_x = esp_l/2 - 16 + 2
@@ -55,42 +58,14 @@ def pod():
     usb_hole = trans(esp_l - esp_offset_x - 4, outer_w/2, 12, ccube(pod_l2, usb_w, usb_h))
     pod = pod_outer - trans(1, -esp_usb_offset, (pod_h - usb_h)/2, hole()(usb_hole))
 
-    # Hole for power plug (JST PH)
-    pwr_plug_l = 5
-    pwr_plug_x = pod_l + pod_l3
-    pwr_plug_y = 14
-    pwr_plug_z = 3
-    es = .5 # empirics
-    pwr_plug_w = 4.7 + es
-    pwr_plug_h = 6 + es
-    pwr_wire_sz = 4
-    pwr_wirehole = trans(pwr_plug_x - 10, pwr_plug_y, pwr_plug_z + (pwr_plug_h - pwr_wire_sz)/2, ccube(pod_l + 10, pwr_wire_sz, pwr_wire_sz))
-    pwr_plughole = trans(pwr_plug_x - 1, pwr_plug_y, pwr_plug_z, ccube(pwr_plug_l + 1, pwr_plug_w, pwr_plug_h))
-    pwr_plugtube = trans(pwr_plug_x, pwr_plug_y, pwr_plug_z-r, ccube(pwr_plug_l, pwr_plug_w+3, pwr_plug_h+3))
-
-    # Hole for door switches (2.54 mm header)
-    sw_plug_x = pod_l
-    sw_plug_y = 2.5
-    sw_plug_l = pod_l + pod_l3
-    sw_plug_z = 3
-    es = 1 # empirics
-    n = 2
-    sw_hdr_w = n*2.5 + es
-    sw_hdr_h = n*2.5 + es
-    es = 0.5 # empirics
-    sw_housing_w = n*2.6 + es
-    sw_housing_h = n*2.6 + es
-    sw_housing_l = 10
-    sw_hdrhole = trans(sw_plug_x, sw_plug_y, sw_plug_z, cube([sw_plug_l, sw_hdr_w, sw_hdr_h]))
     # LED hole
     led_x = pod_l
-    led_y = 26
-    led_z = 7
+    led_y = 15
+    led_z = 6.5
     led_l = 50
     ledhole = trans(led_x, led_y, led_z, rot(90, 0, 90, cylinder(d = 5, h = 50)))
-    ledtube = trans(led_x + 2, led_y, led_z, rot(90, 0, 90, cylinder(d = 7, h = 5)))
 
-    holes = sw_hdrhole + pwr_wirehole + pwr_plughole + pod_inner + ledhole + ledtube
+    holes = pod_inner + ledhole# + ledtube
 
     esph = rot(0, 0, 180, esp_holder())
     part2 = trans(esp_offset_x, esp_offset_y, esp_offset_z, esph)
@@ -119,9 +94,9 @@ def smps():
     l = 22 + ex
     h = 2
     wt = 1
-    inner = ccube(w, l, h + e)
+    inner = ccube(w, l, 2*h)
     outer = ccube(w + 2*wt, l + 2*wt, h)
-    return trans(8, filler_offset - dia/2 - h, lid_w/2, rot(90, 0, 180, outer - hole()(inner)))
+    return trans(6, filler_offset - dia/2 - h - 0.5, lid_w/2 - 3, rot(90, 0, 180, outer - hole()(inner)))
 
 def shell_outer():
     # Hollow cylinder
@@ -153,6 +128,28 @@ def shell_inner():
     inner = down(1)(cylinder(d = dia - 2*lid_th, h = lid_w+2, segments = 256))
     return inner
 
+avpod_x = dia - 2.6*avpod_h
+
+def avpod_outer():
+    r = 1.5
+    pod_outer = trans(avpod_x, -(avpod_w + 1.5),
+                      lid_w - outer_w, roundcube(avpod_h, avpod_w, avpod_l, r))
+    inner = cylinder(d = dia, h = lid_w)
+    outer = cylinder(d = dia+35, h = lid_w)
+    cutter = outer - inner
+    return pod_outer - cutter
+
+def avpod_inner():
+    r = 1.5
+    th = 2
+    inner = trans(avpod_x + th, -(avpod_w + filler_indent),
+                  lid_w - outer_w + th, roundcube(avpod_h+5, avpod_w - th, avpod_l - 2*th, r))
+    y = -avpod_h + 4.5
+    z = avpod_l/2 + filler_indent
+    hole = trans(15, y, z, rot(0, 90, 0, cylinder(d = 12, h = 20)))
+    cutout = trans(23.4, y, z, rot(0, 90, 0, cylinder(d = 15, h = 20)))
+    return inner + hole + cutout
+
 def assembly():
     sh = shell_outer()
     part1 = sh + smps() - shell_inner() + shell_block()
@@ -161,7 +158,8 @@ def assembly():
     pod_t = trans(pod_offset_x, esp_offset_y,
                   (lid_w - outer_w)/1,
                   rot(180+90, 180, 90, pod()))
-    return part1 + pod_t
+    avpod_t = avpod_outer()
+    return part1 + pod_t + avpod_t - avpod_inner()
 
 if __name__ == '__main__':
     a = assembly()
