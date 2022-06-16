@@ -311,6 +311,7 @@ static int calibrate(int argc, char** argv)
     maximum_position = 60;
     encoder_position = 45;
     is_calibrated = true;
+    vTaskDelay(10000 / portTICK_PERIOD_MS);
 #else
     verbose_printf("Calibrating...\n");
 
@@ -579,6 +580,7 @@ static int lock(int, char**)
 #ifdef SIMULATE
     state = Locked;
     encoder_position = 5;
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
 #else
     update_state();
 #endif
@@ -625,6 +627,7 @@ static int unlock(int, char**)
 #ifdef SIMULATE
     state = Unlocked;
     encoder_position = 45;
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
 #else
     update_state();
 #endif
