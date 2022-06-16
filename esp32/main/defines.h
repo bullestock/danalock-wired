@@ -4,7 +4,7 @@
 #include "led.h"
 #include "motor.h"
 
-#define VERSION "0.9"
+#define VERSION "1.0"
 
 constexpr const auto AIN1 = (gpio_num_t) 5;
 constexpr const auto AIN2 = (gpio_num_t) 23;
@@ -24,7 +24,7 @@ constexpr const int LED_DEFAULT_DUTY_CYCLE_DEN = 100;
 constexpr const int MOTOR_CALIBRATE_POWER = 250;
 
 /// Motor power for normal operation
-constexpr const int MOTOR_DEFAULT_POWER = 300; // reduced for testing
+constexpr const int MOTOR_DEFAULT_POWER = 500;
 
 constexpr const int DEFAULT_BACKOFF_PULSES = 10;
 
