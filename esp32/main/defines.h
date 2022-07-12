@@ -4,7 +4,7 @@
 #include "led.h"
 #include "motor.h"
 
-#define VERSION "1.0"
+#define VERSION "1.1"
 
 constexpr const auto AIN1 = (gpio_num_t) 5;
 constexpr const auto AIN2 = (gpio_num_t) 23;
@@ -26,7 +26,7 @@ constexpr const int MOTOR_CALIBRATE_POWER = 250;
 /// Motor power for normal operation
 constexpr const int MOTOR_DEFAULT_POWER = 500;
 
-constexpr const int DEFAULT_BACKOFF_PULSES = 10;
+constexpr const int DEFAULT_BACKOFF_PULSES = 20;
 
 /// Number of ms to back off after hitting limit
 constexpr const int BACKOFF_MS = 750;
