@@ -63,3 +63,13 @@ void Switches::update()
         return;
     }
 }
+
+extern "C" void switch_task(void*)
+{
+    while (1)
+    {
+        led.update();
+        switches.update();
+        vTaskDelay(1 / portTICK_PERIOD_MS);
+    }
+}

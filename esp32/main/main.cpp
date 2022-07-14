@@ -15,9 +15,9 @@
 #include "nvs_flash.h"
 
 extern "C" void console_task(void*);
-extern "C" void encoder_task(void*);
+extern "C" void switch_task(void*);
 
-Encoder encoder(ENC_A, ENC_B);
+Encoder encoder(PCNT_UNIT_0, ENC_A, ENC_B);
 Led led(LED);
 Motor* motor = nullptr;
 Switches switches;
@@ -75,7 +75,5 @@ extern "C" void app_main()
            default_motor_power, backoff_pulses);
     
     xTaskCreate(console_task, "console_task", 4*1024, NULL, 5, NULL);
-#ifndef SIMULATE
-    xTaskCreate(encoder_task, "encoder_task", 4*1024, NULL, 5, NULL);
-#endif
+    xTaskCreate(switch_task, "switch_task", 4*1024, NULL, 5, NULL);
 }

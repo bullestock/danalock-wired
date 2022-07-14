@@ -1,6 +1,8 @@
 #include <cmath>
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -63,7 +65,7 @@ State state = Unknown;
 static void update_state()
 {
     // Check if anybody has tinkered with the knob
-    const auto pos = encoder_position.load();
+    const auto pos = encoder.poll();
     verbose_printf("update_state: pos %d\n", pos);
     if (pos < 0 || pos > maximum_position + 2)
     {
@@ -232,7 +234,7 @@ bool do_calibration(bool fwd)
     const auto pwr = fwd ? MOTOR_CALIBRATE_POWER : -MOTOR_CALIBRATE_POWER;
     verbose_printf("- %s (%d)...\n", fwd ? "locking" : "unlocking", pwr);
     auto start_ms = xTaskGetTickCount()*portTICK_PERIOD_MS;
-    const int start_pos = encoder_position.load();
+    const int start_pos = encoder.poll();
     verbose_printf("- start %ld pos %d\n", (long) start_ms, start_pos);
     bool engaged = false;
     motor->drive(pwr);
@@ -244,7 +246,7 @@ bool do_calibration(bool fwd)
     while (1)
     {
         const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
-        const int pos = encoder_position.load();
+        const int pos = encoder.poll();
         if (!engaged)
         {
             if (now - start_ms > max_engage_ms)
@@ -275,8 +277,7 @@ bool do_calibration(bool fwd)
                 if (fwd)
                 {
                     // Use this position (fully locked) as zero
-                    reset_encoder.store(true);
-                    vTaskDelay(100 / portTICK_PERIOD_MS);
+                    encoder.set_zero();
                 }
                 else
                     // This is the maximum position
@@ -284,7 +285,7 @@ bool do_calibration(bool fwd)
 
                 verbose_wait();
                 backoff(pwr);
-                verbose_printf("After backoff: %d\n", encoder_position.load());
+                verbose_printf("After backoff: %d\n", encoder.poll());
                 verbose_printf("last change %ld\n", (long) last_position_change);
                 return true;
             }
@@ -329,7 +330,7 @@ static int calibrate(int argc, char** argv)
     motor->brake();
     if (!ok)
         return 0;
-    unlocked_position = encoder_position.load();
+    unlocked_position = encoder.poll();
     
     led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                    LED_DEFAULT_DUTY_CYCLE_DEN,
@@ -385,14 +386,14 @@ int rotate(int argc, char** argv)
     const int needed_pulses = abs_degrees * Encoder::STEPS_PER_REVOLUTION / 360;
     
     const int MAX_TIME = 10000; // ms
-    const auto start_pos = encoder_position.load();
+    const auto start_pos = encoder.poll();
     const auto start_tick = xTaskGetTickCount();
     motor->drive(sign * default_motor_power);
     const int slice = 10;
     int k = 0;
     while (1)
     {
-        const auto pos = encoder_position.load();
+        const auto pos = encoder.poll();
         if (sign*(pos - start_pos) >= needed_pulses)
         {
             break;
@@ -482,7 +483,7 @@ rotate_result rotate_to(bool fwd, int position)
 {
     rotate_result res;
     
-    const auto start_pos = encoder_position.load();
+    const auto start_pos = encoder.poll();
     verbose_printf("rotate_to %d: start_pos %d\n", position, start_pos);
     if ((fwd && (position > start_pos)) ||
         (!fwd && (position < start_pos)))
@@ -512,7 +513,7 @@ rotate_result rotate_to(bool fwd, int position)
     while (1)
     {
         const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
-        const auto pos = encoder_position.load();
+        const auto pos = encoder.poll();
         if (!engaged)
         {
             if (now - start_ms > max_engage_ms)
@@ -605,7 +606,7 @@ static int lock(int, char**)
         {
             // Back off
             backoff(default_motor_power);
-            verbose_printf("Backed off to %d\n", encoder_position.load());
+            verbose_printf("Backed off to %d\n", encoder.poll());
         }
         led.set_params(LED_DEFAULT_DUTY_CYCLE_NUM,
                        LED_DEFAULT_DUTY_CYCLE_DEN,
@@ -719,7 +720,7 @@ static int status(int, char**)
         assert(false);
         break;
     }
-    const auto pos = encoder_position.load();
+    const auto pos = encoder.poll();
     printf("OK: status %s %s %s %d\n",
            status,
            switches.is_door_closed() ? "closed" : "open",
@@ -748,13 +749,18 @@ static int read_encoder(int, char**)
     for (int n = 0; n < 100; ++n)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
-        auto raw = encoder.get_raw();
-        printf("Encoder %d (%d %d)\n",
-               encoder_position.load(), (int) raw.first, (int) raw.second);
+        printf("Encoder %" PRId64 "\n", encoder.poll());
         led.update();
     }
     update_state();
     printf("done\n");
+    return 0;
+}
+
+static int zero_encoder(int, char**)
+{
+    encoder.set_zero();
+    printf("Zeroed\n");
     return 0;
 }
 
@@ -873,13 +879,22 @@ extern "C" void console_task(void*)
     ESP_ERROR_CHECK(esp_console_cmd_register(&reverse_cmd));
 
     const esp_console_cmd_t read_encoder_cmd = {
-        .command = "read_encoder",
+        .command = "rd_enc",
         .help = "Read encoder",
         .hint = nullptr,
         .func = &read_encoder,
         .argtable = nullptr
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&read_encoder_cmd));
+
+    const esp_console_cmd_t zero_encoder_cmd = {
+        .command = "z_enc",
+        .help = "Set encoder to zero",
+        .hint = nullptr,
+        .func = &zero_encoder,
+        .argtable = nullptr
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&zero_encoder_cmd));
 
     const esp_console_cmd_t calibrate_cmd = {
         .command = "calibrate",

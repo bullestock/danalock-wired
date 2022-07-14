@@ -1,45 +1,37 @@
 #pragma once
 
-#include <atomic>
-#include <limits>
-#include <utility>
-
-#include "driver/gpio.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <driver/pcnt.h>
 
 class Encoder
 {
 public:
-    Encoder(gpio_num_t pin1, gpio_num_t pin2,
-            int lower_bound = std::numeric_limits<int>::min(),
-            int upper_bound = std::numeric_limits<int>::max(),
-            int initial_pos = 0);
-
     // 50 steps per revolution
-    static constexpr const int STEPS_PER_REVOLUTION = 50;
+    static constexpr int STEPS_PER_REVOLUTION = 50;
     
-    int getPosition() const;
-    void resetPosition(int p = 0);
+    Encoder(pcnt_unit_t unit,
+            int gpio1, int gpio2);
 
-    std::pair<bool, bool> get_raw() const;
+    int64_t poll();
 
-    enum Direction
+    void set_zero();
+    
+private:
+    struct pcnt_evt_t
     {
-        LEFT,
-        RIGHT
+        Encoder* enc = 0;
+        uint32_t status = 0;
     };
+
+    static void IRAM_ATTR quad_enc_isr(void*);
+
+    pcnt_unit_t unit = (pcnt_unit_t) 0;
     
-    Direction getDirection() const;
+    // A queue to handle pulse counter events
+    static xQueueHandle pcnt_evt_queue;
 
-    void loop();
-
-protected:
-    gpio_num_t pin1 = (gpio_num_t) 0;
-    gpio_num_t pin2 = (gpio_num_t) 0;
-    int position = 0;
-    int last_position = 0;
-    int lower_bound = 0;
-    int upper_bound = 0;
-    unsigned long last_read_ms = 0;
-    Direction direction = LEFT;
-    int state = 0;
+    int64_t accumulated = 0;
 };
+
+extern Encoder encoder;

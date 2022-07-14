@@ -1,119 +1,104 @@
-#include "defines.h"
-#include "switches.h"
+#include "encoder.h"
 
-#include <cmath>
-#include <stdio.h>
+#include <soc/timer_group_struct.h>
+#include <driver/periph_ctrl.h>
+#include <driver/pcnt.h>
+#include <driver/timer.h>
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#define PCNT_H_LIM_VAL      1000
+#define PCNT_L_LIM_VAL     -1000
 
-Encoder::Encoder(gpio_num_t _pin1, gpio_num_t _pin2, int _lower_bound, int _upper_bound, int initial_pos)
-    : pin1(_pin1),
-      pin2(_pin2),
-      lower_bound(_lower_bound < _upper_bound ? _lower_bound : _upper_bound),
-      upper_bound(_lower_bound < _upper_bound ? _upper_bound: _lower_bound)
+xQueueHandle Encoder::pcnt_evt_queue = nullptr;
+
+Encoder::Encoder(pcnt_unit_t _unit, int gpio1, int gpio2)
+    : unit(_unit)
 {
-    // Configure GPIO pins
+    pcnt_config_t pcnt_config;
+    pcnt_config.pulse_gpio_num = gpio1;
+    pcnt_config.ctrl_gpio_num = gpio2;
+    pcnt_config.channel = PCNT_CHANNEL_0;
+    pcnt_config.unit = unit;
+    pcnt_config.pos_mode = PCNT_COUNT_DEC;
+    pcnt_config.neg_mode = PCNT_COUNT_INC;
+    pcnt_config.lctrl_mode = PCNT_MODE_KEEP;
+    pcnt_config.hctrl_mode = PCNT_MODE_REVERSE;
+    pcnt_config.counter_h_lim = PCNT_H_LIM_VAL;
+    pcnt_config.counter_l_lim = PCNT_L_LIM_VAL;
+
+    ESP_ERROR_CHECK(pcnt_unit_config(&pcnt_config));
+
+    pcnt_config.pulse_gpio_num = gpio2;
+    pcnt_config.ctrl_gpio_num = gpio1;
+    pcnt_config.channel = PCNT_CHANNEL_1;
+    pcnt_config.pos_mode = PCNT_COUNT_INC;
+    pcnt_config.neg_mode = PCNT_COUNT_DEC;
+
+    ESP_ERROR_CHECK(pcnt_unit_config(&pcnt_config));
     
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_INPUT;
-    // bit mask of the pins that you want to set
-    io_conf.pin_bit_mask = (1ULL << _pin1) | (1ULL << _pin2);
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    ESP_ERROR_CHECK(gpio_config(&io_conf));
+    pcnt_counter_pause(unit);
+    pcnt_counter_clear(unit);
 
-    loop();
-    resetPosition(initial_pos);
-    last_read_ms = 0;
-}
-
-void Encoder::resetPosition(int p)
-{
-    if (p > upper_bound)
-        last_position = upper_bound;
-    else
-        last_position = (lower_bound > p) ? lower_bound : p;
-
-    if (position != last_position)
-        position = last_position;
-
-    direction = LEFT;
-}
-
-Encoder::Direction Encoder::getDirection() const
-{
-    return direction;
-}
-
-int Encoder::getPosition() const
-{
-    return position;
-}
-
-void Encoder::loop()
-{
-    const auto pin1_state = !gpio_get_level(pin1);
-    const auto pin2_state = !gpio_get_level(pin2);
-
-    int s = state & 3;
-    if (pin1_state)
-        s |= 4;
-    if (pin2_state)
-        s |= 8;
-
-    switch (s) {
-    case 0: case 5: case 10: case 15:
-        break;
-    case 1: case 7: case 8: case 14:
-        position++; break;
-    case 2: case 4: case 11: case 13:
-        position--; break;
-    case 3: case 12:
-        position += 2; break;
-    default:
-        position -= 2; break;
-    }
-    state = (s >> 2);
-
-    if (getPosition() >= lower_bound && getPosition() <= upper_bound)
+    // Initialize PCNT event queue and PCNT functions
+    if (!pcnt_evt_queue)
     {
-        if (position != last_position)
-        {
-            if (std::abs(position - last_position) >= 1)
-            {
-                if (position > last_position)
-                    direction = RIGHT;
-                else
-                    direction = LEFT;
-                last_position = position;
-            }
+        pcnt_evt_queue = xQueueCreate(10, sizeof(pcnt_evt_t));
+        ESP_ERROR_CHECK(pcnt_isr_service_install(0));
+    }
+    pcnt_isr_handler_add(unit, quad_enc_isr, this);
+
+    pcnt_set_filter_value(unit, 30000); // 0.375 milliseconds
+    pcnt_filter_enable(unit);
+
+    pcnt_event_enable(unit, PCNT_EVT_H_LIM);
+    pcnt_event_enable(unit, PCNT_EVT_L_LIM);
+
+    pcnt_counter_resume(unit);
+}
+
+void Encoder::set_zero()
+{
+    ESP_ERROR_CHECK(pcnt_counter_clear(unit));
+}
+
+int64_t Encoder::poll()
+{
+    /* Wait for the event information passed from PCNT's interrupt handler.
+     * Once received, decode the event type and print it on the serial monitor.
+     */
+    pcnt_evt_t evt;
+    auto res = xQueueReceive(pcnt_evt_queue, &evt, 0);
+    if (res == pdTRUE)
+    {
+        auto enc = (Encoder*) evt.enc;
+        //printf("Status %d\n", evt.status);
+        if (evt.status & PCNT_STATUS_L_LIM_M) {
+            enc->accumulated += PCNT_L_LIM_VAL;
+        }
+        if (evt.status & PCNT_STATUS_H_LIM_M) {
+            enc->accumulated += PCNT_H_LIM_VAL;
         }
     }
-    else
-        position = last_position;
+
+    int16_t temp_count;
+    pcnt_get_counter_value(unit, &temp_count);
+    return temp_count + accumulated;
 }
 
-std::pair<bool, bool> Encoder::get_raw() const
+void IRAM_ATTR Encoder::quad_enc_isr(void* arg)
 {
-    return std::make_pair(gpio_get_level(pin1),
-                          gpio_get_level(pin2));
-}
+    auto enc = (Encoder*) arg;
 
-std::atomic<int> encoder_position{0};
-std::atomic<bool> reset_encoder{false};
-
-extern "C" void encoder_task(void*)
-{
-    while (1)
+    uint32_t status = 0;
+    pcnt_get_event_status(enc->unit, &status);
+    if ((status & PCNT_STATUS_L_LIM_M) ||
+        (status & PCNT_STATUS_H_LIM_M))
     {
-        if (reset_encoder.exchange(false))
-            encoder.resetPosition();
-        encoder.loop();
-        encoder_position = encoder.getPosition();
-        led.update();
-        switches.update();
-        vTaskDelay(1 / portTICK_PERIOD_MS);
+        pcnt_evt_t evt;
+        evt.enc = enc;
+        evt.status = status;
+        portBASE_TYPE HPTaskAwoken = pdFALSE;
+        xQueueSendFromISR(pcnt_evt_queue, &evt, &HPTaskAwoken);
+        if (HPTaskAwoken == pdTRUE)
+            portYIELD_FROM_ISR();
     }
 }

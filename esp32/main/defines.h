@@ -4,7 +4,7 @@
 #include "led.h"
 #include "motor.h"
 
-#define VERSION "1.1"
+#define VERSION "1.2"
 
 constexpr const auto AIN1 = (gpio_num_t) 5;
 constexpr const auto AIN2 = (gpio_num_t) 23;
@@ -40,9 +40,3 @@ extern Encoder encoder;
 extern Led led;
 extern int default_motor_power;
 extern int backoff_pulses;
-
-/// Gets updated by encoder_task()
-extern std::atomic<int> encoder_position;
-
-/// Set this to make current position zero
-extern std::atomic<bool> reset_encoder;
