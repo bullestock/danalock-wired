@@ -3,6 +3,8 @@
 
 #include "driver/gpio.h"
 
+constexpr int NOF_READS = 10;
+
 Switches::Switches()
 {
     gpio_config_t io_conf;
@@ -17,22 +19,24 @@ Switches::Switches()
 
 bool Switches::is_door_closed() const
 {
-    const auto d1 = !gpio_get_level(DOOR_SW);
-    vTaskDelay(30 / portTICK_PERIOD_MS);
-    const auto d2 = !gpio_get_level(DOOR_SW);
-    vTaskDelay(30 / portTICK_PERIOD_MS);
-    const auto d3 = !gpio_get_level(DOOR_SW);
-    return d1 && d2 && d3;
+    for (int i = 0; i < NOF_READS; ++i)
+    {
+        if (gpio_get_level(DOOR_SW))
+            return false;
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+    return true;
 }
 
 bool Switches::is_handle_raised() const
 {
-    const auto h1 = !gpio_get_level(HANDLE_SW);
-    vTaskDelay(30 / portTICK_PERIOD_MS);
-    const auto h2 = !gpio_get_level(HANDLE_SW);
-    vTaskDelay(30 / portTICK_PERIOD_MS);
-    const auto h3 = !gpio_get_level(HANDLE_SW);
-    return h1 && h2 && h3;
+    for (int i = 0; i < NOF_READS; ++i)
+    {
+        if (gpio_get_level(HANDLE_SW))
+            return false;
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+    return true;
 }
 
 void Switches::set_door_locked()
@@ -49,15 +53,6 @@ void Switches::update()
 {
     if (!is_door_closed())
     {
-        vTaskDelay(30 / portTICK_PERIOD_MS);
-        if (is_door_closed())
-            return; // Must be noise
-        vTaskDelay(30 / portTICK_PERIOD_MS);
-        if (is_door_closed())
-            return; // Must be noise
-        vTaskDelay(30 / portTICK_PERIOD_MS);
-        if (is_door_closed())
-            return; // Must be noise
         // Remember that the door was opened
         m_door_locked.store(false);
         return;

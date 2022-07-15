@@ -689,9 +689,7 @@ static int version(int, char**)
 
 static int status(int, char**)
 {
-#ifdef SIMULATE
     switches.update();
-#endif
     verbose_printf("status: initial state %d\n", (int) state);
     update_state();
     const char* status = "?";
