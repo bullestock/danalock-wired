@@ -12,6 +12,10 @@ screw_d = 3.5
 sh_d = 5.5
 sh_h = 3
 
+# channel for wire
+ch_w = 5
+ch_h = 2
+
 res = (cq.Workplane("XY")
        .tag("bot")
        .box(l, 3*w, h1+lid_h, centered=(True, True, False))
@@ -34,8 +38,16 @@ res = (cq.Workplane("XY")
        .workplaneFromTagged("bot")
        .transformed(rotate=(90, 0, 0))
        .transformed(offset=(0, 2, -w))
-       .slot2D(5, 2, 0)
+       .slot2D(ch_w, ch_h, 0)
+       .cutBlind(2*w)
+       .workplaneFromTagged("base")
+       .transformed(offset=(0, 0, -h1/2-ch_h))
+       .slot2D(ch_w, ch_h, 0)
        .cutBlind(3*w)
+       .workplaneFromTagged("base")
+       .transformed(offset=(0, 0, h2+lid_h/2), rotate=(90, 0, 0))
+       .slot2D(ch_w, ch_h*2, 0)
+       .cutBlind(w)
       )
 
 show_object(res)
