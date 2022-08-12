@@ -1,0 +1,30 @@
+import cadquery as cq
+
+slot_w = 6
+slot_l = 19
+w = 9
+l = 40
+h = 6
+
+screw_d = 3.5
+sh_d = 5.5
+sh_h = 3
+
+res = (cq.Workplane("XY")
+       .tag("bot")
+       .slot2D(l, w, 0)
+       .extrude(h)
+       .workplaneFromTagged("bot")
+       .slot2D(slot_l, slot_w, 0)
+       .cutThruAll()
+       .workplaneFromTagged("bot")
+       .transformed(offset=(0, 0, h))
+       .rarray(l - 2*sh_d, 1, 2, 1)
+       .cboreHole(screw_d, sh_d, sh_h)
+       .workplaneFromTagged("bot")
+       .transformed(offset=(0, 0, 0), rotate=(90, 0, 0))
+       .slot2D(5, 3, 0)
+       .cutBlind(20)
+      )
+
+show_object(res)
