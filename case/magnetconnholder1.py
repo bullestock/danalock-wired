@@ -1,10 +1,10 @@
 import cadquery as cq
 
-slot_w = 6
-slot_l = 19
+slot_w = 5.6
+slot_l = 18.6
 l = 80
 x_offset = 12
-wire_offset = -20
+wire_offset = -30
 h = 6
 
 screw_d = 3.5
@@ -20,15 +20,19 @@ w = slot_w + 2*i_th + 2*i_x_clearance + 2
 inner = (cq.Workplane("XY")
          .transformed(offset=(x_offset, 0, 0))
          .tag("bot")
-         .transformed(offset=(0, 0, bot_clearance))
          # body
          .slot2D(slot_l+2*i_th, slot_w+2*i_th, 0)
-         .extrude(h - bot_clearance)
+         .extrude(h)
          .edges(">Z")
          .workplaneFromTagged("bot")
          # slot for connector
          .slot2D(slot_l, slot_w, 0)
          .cutThruAll()
+         .workplaneFromTagged("bot")
+         .transformed(offset=(-12, 2, 0), rotate=(90, 90, 0))
+         # wire slot
+         .slot2D(5, 3, 0)
+         .cutBlind(5)
          )
 
 outer = (cq.Workplane("XY")
@@ -56,39 +60,30 @@ outer = (cq.Workplane("XY")
 res = outer + inner
 #res = inner
 
-s_th = 1 # spring thickness
-s_length = i_y_clearance-i_x_clearance
+s_th = 0.6 # spring thickness - was 1
+s_length = i_y_clearance + s_th
 s_width = slot_w/2 + i_th + i_x_clearance
-def spring(o, x, y):
-    th = 1
-    d1 = 2
-    d2 = 1.5
+def spring():
+    d1 = s_length/4
+    d2 = 3
     sPnts = [
-        (x+1*d1, y+d2),
-        (x+2*d1, y+0),
-        (x+3*d1, y+-d2),
-        (x+4*d1, y+0)
+        (1*d1, d2),
+        (2*d1, 0),
+        (3*d1, -d2),
+        (4*d1, 0)
     ]
-    s = o.workplaneFromTagged("bot").transformed(offset=(0, 0, 0))
+    s = cq.Workplane("XY")
     r = s.spline(sPnts, includeCurrent=True)
     return (cq.Workplane("XZ")
-            .rect(th, h).sweep(r)
+            .rect(s_th, h).sweep(r)
             )
 
-def springPath(x, y):
-    d1 = 2
-    d2 = 1.5
-    sPnts = [
-        (x+1*d1, y+d2),
-        (x+2*d1, y+0),
-        (x+3*d1, y+-d2),
-        (x+4*d1, y+0)
-    ]
-    r = s.spline(sPnts, includeCurrent=True)
-    return (cq.Workplane("XZ")
-            .rect(th, h).sweep(r)
-            )
+springs = (res
+           .workplaneFromTagged("bot")
+           .transformed(offset=(x_offset - 0.5*s_length, 0, h/2))
+           .rarray(slot_l + s_length + 2*i_th - s_th, 1, 2, 1)
+       .eachpoint(lambda loc: spring().val().moved(loc), True)
+       )
+res = res + springs
 
-res = res + spring(res, 0, 0)
-#res = spring(1, 0)
 show_object(res)
