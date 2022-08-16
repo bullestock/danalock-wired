@@ -2,9 +2,9 @@ import cadquery as cq
 
 slot_w = 5.55
 slot_l = 18.5
-l = 80
-x_offset = 12
-wire_offset = -28
+l = 60
+x_offset = 3
+wire_offset = -19
 h = 6
 
 screw_d = 3.5
@@ -15,7 +15,8 @@ i_th = 1
 bot_clearance = 1
 i_x_clearance = 1
 i_y_clearance = 7
-w = slot_w + 2*i_th + 2*i_x_clearance + 4
+wall_th = 2
+w = slot_w + 2*i_th + 2*i_x_clearance + 2*wall_th
 
 inner = (cq.Workplane("XY")
          .transformed(offset=(x_offset, 0, 0))
@@ -52,19 +53,14 @@ outer = (cq.Workplane("XY")
          .cutThruAll()
          # wire slot
          .workplaneFromTagged("bot")
-         .transformed(offset=(wire_offset, w/4, 0), rotate=(90, 0, 0))
-         .rect(5, 3)
-         .cutBlind(w*2)
-         # reed slot
+         .transformed(offset=(wire_offset-2.5, 3, 0), rotate=(90, 90, 0))
+         .rect(2, 4)
+         .cutBlind(12)
+         # wire exit
          .workplaneFromTagged("bot")
-         .transformed(offset=(wire_offset+2, 0, 0), rotate=(90, 90, 0))
-         .rect(7, 6)
-         .cutBlind(18)
-         # wire slot
-         .workplaneFromTagged("bot")
-         .transformed(offset=(wire_offset+18, 3, 0), rotate=(90, 90, 0))
-         .rect(2, 6)
-         .cutBlind(10)
+         .transformed(offset=(wire_offset, w/2+wall_th, 0), rotate=(90, 0, 0))
+         .slot2D(5, 3, 0)
+         .cutBlind(2.5*wall_th)
          )
 
 res = outer + inner
