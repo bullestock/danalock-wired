@@ -2,10 +2,10 @@ import cadquery as cq
 
 slot_w = 5.55
 slot_l = 18.5
-l = 60
-x_offset = 3
-wire_offset = -19
-h = 6
+l = 70
+x_offset = 8
+wire_offset = -12
+h = 7
 
 screw_d = 3.5
 sh_d = 5.5
@@ -55,12 +55,17 @@ outer = (cq.Workplane("XY")
          .workplaneFromTagged("bot")
          .transformed(offset=(wire_offset-2.5, 3, 0), rotate=(90, 90, 0))
          .rect(2, 4)
-         .cutBlind(12)
+         .cutBlind(10)
          # wire exit
          .workplaneFromTagged("bot")
-         .transformed(offset=(wire_offset, w/2+wall_th, 0), rotate=(90, 0, 0))
-         .slot2D(5, 3, 0)
-         .cutBlind(2.5*wall_th)
+         .transformed(offset=(wire_offset, +2, 0), rotate=(90, 0, 0))
+         .slot2D(4, 3, 0)
+         .cutBlind(w)
+         # magnet hole
+         .workplaneFromTagged("bot")
+         .transformed(offset=(wire_offset-8, 6, 0), rotate=(90, 0, 0))
+         .slot2D(12.5, 6.25, 90)
+         .cutBlind(6)
          )
 
 res = outer + inner
