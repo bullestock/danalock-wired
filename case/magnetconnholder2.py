@@ -11,7 +11,7 @@ h2 = 11.4
 
 screw_d = 3.5
 sh_d = 5.5
-sh_h = 12
+sh_h = 15
 
 # channel for wire
 ch_w = 7
@@ -19,7 +19,7 @@ ch_h = 4
 
 res = (cq.Workplane("XY")
        .tag("bot")
-       # large block
+       # wide block
        .box(l, 3*w, h1+lid_h, centered=(True, True, False))
        .workplaneFromTagged("bot")
        .transformed(offset=(0, w, h1+lid_h))
@@ -29,10 +29,10 @@ res = (cq.Workplane("XY")
        .workplaneFromTagged("bot")
        .transformed(offset=(0, -w, h1))
        .tag("base")
-       # small block
+       # narrow block
        .workplaneFromTagged("base")
        .transformed(offset=(-(l2-l)/2, 0, -h1))
-       .box(l2, w, 2*(h1+lid_h), centered=(True, True, False))
+       .box(l2, w, h1+h2, centered=(True, True, False))
        .edges("|Z")
        .fillet(w/2-0.1)
        .edges("<Z")
@@ -55,17 +55,17 @@ res = (cq.Workplane("XY")
        .cutBlind(3*w)
        # wire channel part 3: exit through base of small block
        .workplaneFromTagged("base")
-       .transformed(offset=(0, 1, h1+ch_h/2-lid_h), rotate=(90, 0, 0))
+       .transformed(offset=(0, 1, h1+lid_h+ch_h), rotate=(90, 0, 0))
        .slot2D(ch_w, ch_h, 0)
        .cutBlind(w)
        # reed slot
        .workplaneFromTagged("base")
-       .transformed(offset=(-30, 0, h1+1), rotate=(90, 90, 0))
+       .transformed(offset=(-32, 0, h1+lid_h+3), rotate=(90, 90, 0))
        .rect(7, 4)
-       .cutBlind(18)
+       .cutBlind(20)
        # wire slot
        .workplaneFromTagged("base")
-       .transformed(offset=(-15, 3, h1+1), rotate=(90, 90, 0))
+       .transformed(offset=(-15, 3, h1+lid_h+3), rotate=(90, 90, 0))
        .rect(2, 2)
        .cutBlind(15)
       )
