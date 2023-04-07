@@ -7,7 +7,7 @@ l = 25
 l2 = 55
 lid_h = 1
 h1 = 7
-h2 = 11.4
+h2 = 12.4
 
 screw_d = 3.5
 sh_d = 5.5
@@ -55,17 +55,17 @@ res = (cq.Workplane("XY")
        .cutBlind(3*w)
        # wire channel part 3: exit through base of small block
        .workplaneFromTagged("base")
-       .transformed(offset=(0, 1, h1+lid_h+ch_h), rotate=(90, 0, 0))
+       .transformed(offset=(0, 2, h1+lid_h+ch_h+1), rotate=(90, 0, 0))
        .slot2D(ch_w, ch_h, 0)
        .cutBlind(w)
        # reed slot
        .workplaneFromTagged("base")
-       .transformed(offset=(-32, 0, h1+lid_h+3), rotate=(90, 90, 0))
+       .transformed(offset=(-32, 0, h1+lid_h+4), rotate=(90, 90, 0))
        .rect(7, 4)
        .cutBlind(20)
        # wire slot
        .workplaneFromTagged("base")
-       .transformed(offset=(-15, 3, h1+lid_h+3), rotate=(90, 90, 0))
+       .transformed(offset=(-15, 3, h1+lid_h+4), rotate=(90, 90, 0))
        .rect(2, 2)
        .cutBlind(15)
       )
