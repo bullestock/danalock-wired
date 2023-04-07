@@ -7,4 +7,5 @@
   (lib (name "esp32mini")(type "Legacy")(uri "${KIPRJMOD}/libs/esp32mini.lib")(options "")(descr ""))
   (lib (name "dsnmini360")(type "Legacy")(uri "${KIPRJMOD}/libs/dsnmini360.lib")(options "")(descr ""))
   (lib (name "Driver_Motor")(type "KiCad")(uri "${KIPRJMOD}/libs/Driver_Motor.kicad_sym")(options "")(descr ""))
+  (lib (name "esp32mini-shield-inner")(type "KiCad")(uri "${KIPRJMOD}/libs/esp32mini-shield-inner.kicad_sym")(options "")(descr ""))
 )
