@@ -4,7 +4,7 @@
 #include "led.h"
 #include "motor.h"
 
-#define VERSION "1.2"
+#define VERSION "1.4"
 
 constexpr const auto AIN1 = (gpio_num_t) 5;
 constexpr const auto AIN2 = (gpio_num_t) 23;
@@ -40,3 +40,5 @@ extern Encoder encoder;
 extern Led led;
 extern int default_motor_power;
 extern int backoff_pulses;
+
+void verbose_printf(const char* format, ...);

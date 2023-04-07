@@ -3,7 +3,7 @@
 
 #include "driver/gpio.h"
 
-constexpr int NOF_READS = 10;
+constexpr int NOF_READS = 5;
 
 Switches::Switches()
 {
@@ -33,9 +33,13 @@ bool Switches::is_handle_raised() const
     for (int i = 0; i < NOF_READS; ++i)
     {
         if (gpio_get_level(HANDLE_SW))
+        {
+            verbose_printf("raised: no (%d)\n", i);
             return false;
+        }
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+    verbose_printf("raised: yes\n");
     return true;
 }
 

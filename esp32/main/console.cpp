@@ -512,6 +512,12 @@ rotate_result rotate_to(bool fwd, int position)
     int last_position_change = 0;
     while (1)
     {
+        if (!switches.is_handle_raised())
+        {
+            printf("ERROR: Handle raised during rotate\n");
+            res.error_message = "handle raised during rotate";
+            return res;
+        }
         const auto now = xTaskGetTickCount()*portTICK_PERIOD_MS;
         const auto pos = encoder.poll();
         if (!engaged)
@@ -719,10 +725,11 @@ static int status(int, char**)
         break;
     }
     const auto pos = encoder.poll();
+    const auto raised = switches.is_handle_raised();
     printf("OK: status %s %s %s %d\n",
            status,
            switches.is_door_closed() ? "closed" : "open",
-           switches.is_handle_raised() ? "raised" : "lowered",
+           raised ? "raised" : "lowered",
            (int) pos);
     return 0;
 }
@@ -732,9 +739,11 @@ static int read_switches(int, char**)
     for (int n = 0; n < 100; ++n)
     {
         vTaskDelay(500/portTICK_PERIOD_MS);
-        printf("Door %d handle %d\n",
+        printf("Door %d handle %d - %d %d\n",
                (int) !gpio_get_level(DOOR_SW),
-               (int) !gpio_get_level(HANDLE_SW));
+               (int) !gpio_get_level(HANDLE_SW),
+               switches.is_door_closed(),
+               switches.is_handle_raised());
 
     }
     update_state();
