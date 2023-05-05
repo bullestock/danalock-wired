@@ -1,1 +1,3 @@
 esp8266/build/
+case/*.stl
+case/*.scad
