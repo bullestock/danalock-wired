@@ -14,9 +14,9 @@ SEGMENTS = 64
 SEGMENTS_SHELL = SEGMENTS*4
 
 e = 0.001
-dia = 59
-lid_w = 36
-corner_r = 3
+dia = 59     # outer diameter
+lid_w = 36   # overall width
+corner_r = 3 # rounding radius
 lid_th = 2
 
 cutout_h = 7
@@ -34,7 +34,7 @@ filler_indent = 3
 
 # Pod
 pod_l = 17
-pod_l2 = 22
+pod_l2 = 22 + 8
 pod_l3 = 5
 pod_h = 14
 pod_h2 = 11
@@ -46,21 +46,22 @@ outer_w = lid_w - filler_indent
 
 def pod():
     r = 1.5
-    pod_outer = (trans(0, 0, pod_h2, roundcube(pod_l + pod_l2, outer_w, pod_h, r)) +
-                 trans(0, 0, 0, roundcube(pod_l + pod_l3, outer_w, pod_h2 + 2*r, r)))
+    pod_w = lid_w
+    pod_outer = (trans(-8, 0, pod_h2, roundcube(pod_l + pod_l2, pod_w, pod_h, r)) +
+                 trans(0, 0, 0, roundcube(pod_l + pod_l3, pod_w, pod_h2 + 2*r, r)))
     inner_w = pod_h + pod_h2 - 4*wt
-    pod_inner = trans(-r, 2, 3.5-2, roundcube(pod_l2, esp_w - 3, inner_w, r))
+    pod_inner = trans(-r-8, 2, 3.5-2, roundcube(pod_l2, esp_w - 3, inner_w, r))
     usb_w = 12
     usb_h = 8
     esp_offset_x = esp_l/2 - 16 + 2
-    esp_offset_y = outer_w/2 - .3
+    esp_offset_y = pod_w/2 - .3
     esp_offset_z = 9-1
-    usb_hole = trans(esp_l - esp_offset_x - 4, outer_w/2, 12, ccube(pod_l2, usb_w, usb_h))
+    usb_hole = trans(esp_l - esp_offset_x - 4, pod_w/2, 12, ccube(pod_l2, usb_w, usb_h))
     pod = pod_outer - trans(1, -esp_usb_offset, (pod_h - usb_h)/2, hole()(usb_hole))
 
     # LED hole
     led_x = pod_l
-    led_y = 15
+    led_y = 18
     led_z = 6.5
     led_l = 50
     ledhole = trans(led_x, led_y, led_z, rot(90, 0, 90, cylinder(d = 5, h = 50)))
@@ -86,17 +87,6 @@ def esp_holder():
     grooves = trans(0, esp_w/2 - groove_w/2, 0, groove) + trans(0, -(esp_w/2 - groove_w/2), 0, groove)
     a = frame_outer - hole()(frame_inner + frame_cut + grooves)
     return trans(-1, 0, pod_h2 + 1, a)
-
-# Depression for switch mode power supply
-def smps():
-    ex = .5 # Extra room
-    w = 17 + ex
-    l = 22 + ex
-    h = 2
-    wt = 1
-    inner = ccube(w, l, 2*h)
-    outer = ccube(w + 2*wt, l + 2*wt, h)
-    return trans(6, filler_offset - dia/2 - h - 0.5, lid_w/2 - 3, rot(90, 0, 180, outer - hole()(inner)))
 
 def shell_outer():
     # Hollow cylinder
@@ -125,7 +115,7 @@ def shell_block():
     return filler - screwhole
 
 def shell_inner():
-    inner = down(1)(cylinder(d = dia - 2*lid_th, h = lid_w+2, segments = 256))
+    inner = down(1)(cylinder(d = dia - 2*lid_th, h = lid_w+2, segments = SEGMENTS_SHELL))
     return inner
 
 avpod_x = dia - 2.6*avpod_h
@@ -150,16 +140,19 @@ def avpod_inner():
     cutout = trans(23.4, y, z, rot(0, 90, 0, cylinder(d = 15, h = 20)))
     return inner + hole + cutout
 
+def upper_cutter():
+    h = 10
+    return down(h - filler_indent)(cylinder(d = dia - 2*lid_th, h = h))
+
 def assembly():
     sh = shell_outer()
-    part1 = sh + smps() - shell_inner() + shell_block()
+    part1 = sh - shell_inner() + shell_block()
     pod_offset_x = -3.2
     esp_offset_y = -12
-    pod_t = trans(pod_offset_x, esp_offset_y,
-                  (lid_w - outer_w)/1,
+    pod_t = trans(pod_offset_x, esp_offset_y - 8, 0,
                   rot(180+90, 180, 90, pod()))
     avpod_t = avpod_outer()
-    return part1 + pod_t + avpod_t - avpod_inner()
+    return part1 + pod_t + avpod_t - avpod_inner() - upper_cutter()
 
 if __name__ == '__main__':
     a = assembly()
