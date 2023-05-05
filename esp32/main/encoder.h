@@ -29,7 +29,7 @@ private:
     pcnt_unit_t unit = (pcnt_unit_t) 0;
     
     // A queue to handle pulse counter events
-    static xQueueHandle pcnt_evt_queue;
+    static QueueHandle_t pcnt_evt_queue;
 
     int64_t accumulated = 0;
 };

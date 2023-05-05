@@ -8,7 +8,7 @@
 #define PCNT_H_LIM_VAL      1000
 #define PCNT_L_LIM_VAL     -1000
 
-xQueueHandle Encoder::pcnt_evt_queue = nullptr;
+QueueHandle_t Encoder::pcnt_evt_queue = nullptr;
 
 Encoder::Encoder(pcnt_unit_t _unit, int gpio1, int gpio2)
     : unit(_unit)
@@ -71,10 +71,10 @@ int64_t Encoder::poll()
     {
         auto enc = (Encoder*) evt.enc;
         //printf("Status %d\n", evt.status);
-        if (evt.status & PCNT_STATUS_L_LIM_M) {
+        if (evt.status & PCNT_EVT_L_LIM) {
             enc->accumulated += PCNT_L_LIM_VAL;
         }
-        if (evt.status & PCNT_STATUS_H_LIM_M) {
+        if (evt.status & PCNT_EVT_H_LIM) {
             enc->accumulated += PCNT_H_LIM_VAL;
         }
     }
@@ -90,8 +90,8 @@ void IRAM_ATTR Encoder::quad_enc_isr(void* arg)
 
     uint32_t status = 0;
     pcnt_get_event_status(enc->unit, &status);
-    if ((status & PCNT_STATUS_L_LIM_M) ||
-        (status & PCNT_STATUS_H_LIM_M))
+    if ((status & PCNT_EVT_L_LIM) ||
+        (status & PCNT_EVT_H_LIM))
     {
         pcnt_evt_t evt;
         evt.enc = enc;

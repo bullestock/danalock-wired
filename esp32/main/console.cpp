@@ -407,7 +407,7 @@ int rotate(int argc, char** argv)
         const auto ticks = xTaskGetTickCount() - start_tick;
         if (ticks > MAX_TIME/portTICK_PERIOD_MS)
         {
-            printf("ERROR: Timeout (%d ticks)!\n", ticks);
+            printf("ERROR: Timeout (%lu ticks)!\n", ticks);
             return 0;
         }
         vTaskDelay(10 / portTICK_PERIOD_MS);
