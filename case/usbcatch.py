@@ -3,11 +3,13 @@ import cadquery as cq
 th = 3.5
 w = 11
 oh = 6
+extra = 2
 h = 45
 
 res = (cq.Workplane("XY")
        .tag("bot")
-       .box(oh+th, w, th, centered=False)
+       .transformed(offset=(-extra, 0, 0))
+       .box(oh+th+extra, w, th, centered=False)
        .workplaneFromTagged("bot")
        .transformed(offset=(0, w/2, 0))
        .circle(8/2)
